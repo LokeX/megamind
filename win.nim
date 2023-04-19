@@ -32,7 +32,7 @@ type
   MouseCall = proc(mouse:MouseEvent)
   DrawCall  = proc(boxy:var Boxy)
   CycleCall = proc()
-  Call      = ref object
+  Call      = object
     reciever*:string
     keyboard*:KeyCall
     mouse*   :MouseCall
@@ -215,6 +215,9 @@ proc addImage*(ih:ImageHandle) =
 proc addImages*(ihs:seq[ImageName]) =
   for ih in ihs:
     bxy.addImage(ih.name,ih.image)
+
+proc removeImage*(key:string) =
+  bxy.removeImage(key)
 
 window.onButtonPress = proc (button:Button) =
   if button == KeyEscape:
