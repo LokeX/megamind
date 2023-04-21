@@ -49,14 +49,17 @@ let
   scr = getScreens()[0]
   scrWidth* = (int32)scr.right
   scrHeight* = (int32)scr.bottom
-  winWidth* = scrWidth-(scrWidth div 20)
-  winHeight* = scrHeight-(scrHeight div 8)
+  winWidth* = scrWidth-(scrWidth div 50)
+  winHeight* = scrHeight-(scrHeight div 10)
+  # winWidth* = scrWidth-(scrWidth div 20)
+  # winHeight* = scrHeight-(scrHeight div 8)
   boxyScale*: float = scrWidth/1920
 #  boxyScale*: float = 1
 echo "Scale: ",boxyScale
 
 window.size = ivec2(winWidth,winHeight)
-window.pos = ivec2(110,110)
+# window.pos = ivec2((scrWidth-winWidth) div 2,(scrHeight-winHeight) div 3)
+window.pos = ivec2((scrWidth-winWidth) div 2,(scrHeight-winHeight) div 3)
 #window.icon = readImage("barman.png")
 window.runeInputEnabled = true
 makeContextCurrent(window)
