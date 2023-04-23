@@ -1,7 +1,7 @@
 import win
 import os
 import random
-import sugar
+import sequtils
 
 const
   colors = [
@@ -17,11 +17,15 @@ type
   ColorBar = array[colors.len,Area]
   BoardRow = array[10,int]
   Board = array[nrOfBoardRows,BoardRow]
+  Clue = enum none,match,present,notPresent
+  CluesRow = array[10,Clue]
+  CluesRows = array[nrOfBoardRows,CluesRow]
 
 const
   minColumns = 4
   minColors = 4
   (cbx,cby,cah) = (100,100,50)
+  cbb = cby+(colors.high*cah)
   colorBar = block:
     var bar:ColorBar
     let height = cah*colors.high
@@ -32,6 +36,7 @@ const
   bx = cbx+(cah*2)
 
 let bg = ("bg", readImage("bgblue.png"))
+
 var
   codeRow:BoardRow
   codeRowUpdated = true
@@ -41,10 +46,48 @@ var
   nrOfColors = colors.high
   colorsUpdated = true
   gameOver = true
+  selectedColor = 1
+  rowCursor = 0
+  rowCount = 0
 
 proc generateCodeRow:BoardRow = 
   for i in 0..<nrOfBoardColumns:
     result[i] = (rand(1000*(nrOfColors-1)) div 1000)+1
+
+func cluesRowFromCounts(clueCounts:openArray[int]):CluesRow =
+  var cluesRowIdx = 0
+  for clueCountsIdx,clueCount in clueCounts:
+    for count in 1..clueCount: 
+      result[cluesRowIdx] = Clue(clueCountsIdx+1)
+      inc cluesRowIdx
+
+proc clueCounts(userRow:BoardRow):array[3,int] =
+  var 
+    checkedColors:seq[int]
+    matchCount,presentCount,notPresentCount:int
+  for userColor in userRow:
+    if userColor notin checkedColors:
+      checkedColors.add userColor
+      let codeRowCount = codeRow.count(userColor)
+      if codeRowCount > 0: 
+        let 
+          colorCount = min(codeRowCount,board[rowCount].count(userColor))
+          nrOfMatches = toSeq(0..nrOfBoardColumns-1)
+            .countIt(codeRow[it] == userColor and userRow[it] == userColor)
+        matchCount += nrOfMatches
+        presentCount += colorCount - nrOfMatches
+      else: notPresentCount += 1
+  [matchCount,presentCount,notPresentCount]
+
+proc generateCluesRow(userRow:BoardRow):CluesRow = userRow.clueCounts.cluesRowFromCounts
+
+proc paintCursor(color:ColorRGBA):Image =
+  let ctx = newContext(newImage(cah,cah))
+  ctx.fillStyle = color
+  ctx.fillRoundedRect((10,10,cah-20,cah-20).toRect,25)
+  ctx.image
+
+proc paintRowCursor:Image = paintCursor(colors[selectedColor])
 
 proc paintCodeImage:Image =
   let 
@@ -54,7 +97,7 @@ proc paintCodeImage:Image =
     ctx.fillStyle = if gameOver: colors[colorIdx] else:rgba(0,0,0,255) 
     ctx.fillRect (x*cah,0,cah,cah).toRect
   ctx.image
-
+ 
 proc paintBoard:Image =
   let 
     (width,height) = (nrOfBoardColumns*cah,nrOfBoardRows*cah)
@@ -72,41 +115,62 @@ proc paintColorBar:Image =
     ctx.fillRect(colorBar[i-1].toRect)
   ctx.image
 
-proc drawImage(b:Boxy,update:var bool,x,y:float,name:string,img:() -> Image) =
+proc drawImage(b:var Boxy,update:var bool,x,y:float,name:string,img:proc():Image) =
   if update:
     removeImage(name)
     addImage (name,img())
     update = false
-  b.drawImage(name,pos=vec2(x,y))
+  b.drawImage(name,vec2(x,y))
+
+func keyResult(subst:int,formular:(int,int,int)):int =
+  let (min,max,step) = formular
+  if subst+step < min: max elif subst+step > max: min else: subst+step
+
+template switchOn(s1,s2:untyped,first:bool,f1,f2:(int,int,int)) =
+  if first: s1 = keyResult(s1,f1) else: s2 = keyResult(s2,f2) 
+
+proc arrowInput(button:Button) =
+  let step = if button in [KeyDown,KeyLeft]: -1 else: 1
+  colorsUpdated = button in [KeyDown,KeyUp]
+  boardUpdated = not colorsUpdated
+  if gameOver: switchOn(nrOfColors,nrOfBoardColumns,colorsUpdated,
+    (minColors,colors.high,step),(minColumns,board[0].len,step))
+  else: switchOn(selectedColor,rowCursor,colorsUpdated,
+    (1,nrOfColors,step),(0,nrOfBoardColumns-1,step))
 
 proc handleInput(button:Button) =
   case button
-  of KeyDown: nrOfColors = if nrOfColors == minColors: colors.high else: nrOfColors-1
-  of KeyUp: nrOfColors = if nrOfColors == colors.high: minColors else: nrOfColors+1
-  of KeyLeft: nrOfBoardColumns = 
-    if nrOfBoardColumns == minColumns: board[0].high else: nrOfBoardColumns-1
-  of KeyRight: nrOfBoardColumns = 
-    if nrOfBoardColumns == board[0].high: minColors else: nrOfBoardColumns+1
-  else: discard
-
+  of KeyEnter: gameOver = not gameOver
+  of KeyDown,KeyUp,KeyLeft,KeyRight: arrowInput(button)
+  elif not gameOver:
+    case button
+    of KeySpace: board[rowCount][rowCursor] = selectedColor
+    else: discard
+ 
 proc keyboard(k:KeyEvent) =
   if k.button == ButtonUnknown:
     echo "Rune: ",k.rune
-  elif k.button in [KeyDown,KeyUp,KeyRight,KeyLeft]:
+  elif k.button in [KeyDown,KeyUp,KeyRight,KeyLeft,KeyEnter,KeySpace]:
     handleInput(k.button)
-    colorsUpdated = k.button in [KeyDown,KeyUp]
-    boardUpdated = k.button in [KeyRight,KeyLeft]
-    codeRowUpdated = boardUpdated
+    boardUpdated = boardUpdated or k.button == KeySpace
+    codeRowUpdated = boardUpdated or k.button == KeyEnter
   echo k.button
 
 proc draw(b:var Boxy) =
+  var rowCursorUpdated = colorsUpdated
   b.drawImage("bg", rect = rect(vec2(0, 0), window.size.vec2))
   b.drawImage(colorsUpdated,cbx.toFloat,cby.toFloat,"colorBar",paintColorBar)
   b.drawImage(boardUpdated,bx,by,"board",paintBoard)
+  if not gameOver: 
+    b.drawImage("colorCursor",vec2(cbx.toFloat,(cbb-(selectedColor*cah)).toFloat))
+    b.drawImage(rowCursorUpdated,(bx+(rowCursor*cah)).toFloat,
+      (cbb-((rowCount+2)*cah)).toFloat,"rowCursor",paintRowCursor)
   b.drawImage(codeRowUpdated,bx,cby+25,"code",paintCodeImage)
 
 codeRow = generateCodeRow()
 addImage(bg)
+addImage ("colorCursor",paintCursor(rgba(255,255,255,255)))
+addImage ("rowCursor",paintRowCursor())
 addCall(newCall("megamind",keyboard,nil,draw,nil))
 window.visible = true
 randomize()
