@@ -22,6 +22,7 @@ type
   Clues = array[nrOfBoardRows,CluesRow]
   Update = tuple[codeRow,clues,board,colors:bool]
   Game = tuple[nrOfColumns,nrOfColors,selectedColor,rowCursorPos,rowCount:int]
+  GameState = enum setup,won,lost,playing
 
 const
   minColumns = 4
@@ -45,7 +46,14 @@ var
   clues:Clues
   codeRow:BoardRow
   board:Board
-  gameOver = true
+  gameState:GameState
+
+proc initSetup =
+  var
+    newClues:Clues
+    newBoard:Board
+  clues = newClues
+  board = newBoard
 
 proc initGame =
   game.nrOfColors = colors.high
@@ -53,6 +61,10 @@ proc initGame =
   game.selectedColor = 1
   game.rowCount = 0
   game.rowCursorPos = 0
+
+proc gameOver:bool = gameState in [won,lost]
+
+proc gameWon:bool = codeRow == board[game.rowCount]
 
 proc generateCodeRow:BoardRow = 
   for i in 0..<game.nrOfColumns:
@@ -133,7 +145,7 @@ proc paintClues:Image =
       ctx.fillStyle = colors[0]
       ctx.fillRect (x*(cah div 2),height-((y+1)*cah),cah div 2,cah).toRect
       ctx.fillStyle = clueFillStyleColor
-      ctx.fillRoundedRect((x*(cah div 2),height-((y+1)*cah),cah div 2,cah).toRect,50)
+      ctx.fillRoundedRect((x*(cah div 2)+2,height-((y+1)*cah)+2,(cah div 2)-4,cah-4).toRect,50)
   ctx.image
 
 proc paintColorBar:Image =
@@ -157,42 +169,79 @@ func keyResult(subst:int,formular:(int,int,int)):int =
 template switchOn(s1,s2:untyped,f1,f2:(int,int,int)) =
   if update.colors: s1 = keyResult(s1,f1) else: s2 = keyResult(s2,f2) 
 
-template arrowInput =
-  let step = if k.button in [KeyDown,KeyLeft]: -1 else: 1
+template setArrowImageUpdates =
   update.colors = k.button in [KeyDown,KeyUp]
   update.board = not update.colors
   update.clues = update.board
-  if gameOver: switchOn(game.nrOfColors,game.nrOfColumns,
+
+template arrowPressed =
+  setArrowImageUpdates
+  let step = if k.button in [KeyDown,KeyLeft]: -1 else: 1
+  if gameState == setup: switchOn(game.nrOfColors,game.nrOfColumns,
     (minColors,colors.high,step),(minColumns,board[0].len,step))
-  else: switchOn(game.selectedColor,game.rowCursorPos,
+  elif gameState == playing: switchOn(game.selectedColor,game.rowCursorPos,
     (1,game.nrOfColors,step),(0,game.nrOfColumns-1,step))
 
 template startNewGame =
-  gameOver = false
-  codeRow = generateCodeRow()
+  gameState = playing
   update.codeRow = true
   update.colors = true
+  codeRow = generateCodeRow()
+
+proc notRepeatRow:bool =
+  game.rowCount == 0 or board[game.rowCount] != board[game.rowCount-1]
+
+proc rowFilled:bool =
+  board[game.rowCount].countIt(it != 0) == game.nrOfColumns
 
 template newRow = 
-  clues[game.rowCount] = board[game.rowCount].generateCluesRow
-  inc game.rowCount
-  game.rowCursorPos = 0
-  update.clues = true
-  
-template enterKeyInput =
+  if rowFilled() and notRepeatRow():
+    clues[game.rowCount] = board[game.rowCount].generateCluesRow
+    inc game.rowCount
+    game.rowCursorPos = 0
+    update.clues = true
+
+template startGameSetup =
+  gameState = setup
+  initGame()
+  initSetup()
+
+template enterKeyPressed =
   update.board = true
-  if gameOver:
+  if gameOver():
+    startGameSetup
+  elif gameState == setup:
     startNewGame
+  elif gameWon():
+    gameState = won
   elif game.rowCount < nrOfBoardRows-1:
     newRow
-  else: gameOver = true
+  else: gameState = lost
+
+template spreadColors =
+  let 
+    nrOfColumns = game.nrOfColumns-game.rowCursorPos
+    nrOfColors = game.nrOfColors-game.selectedColor+1
+    colorRepeat = if nrOfColors >= nrOfColumns: 1 else: 
+      (nrOfColumns div nrOfColors)+(nrOfColumns mod nrOfColors)
+  var count = 0
+  for pos in game.rowCursorPos..<game.nrOfColumns:
+    board[game.rowCount][pos] = game.selectedColor
+    inc count
+    if count == colorRepeat:
+      inc game.selectedColor
+      count = 0
+  if game.selectedColor >= game.nrOfColors: game.selectedColor = 1
+  update.board = true
 
 proc keyboard(k:KeyEvent) = 
+  echo k.button
   case k.button
-  of KeyEnter: enterKeyInput
-  of KeyDown,KeyUp,KeyLeft,KeyRight: arrowInput
-  elif not gameOver:
+  of KeyEnter: enterKeyPressed
+  of KeyDown,KeyUp,KeyLeft,KeyRight: arrowPressed
+  elif not gameOver():
     case k.button
+    of KeyS: spreadColors
     of KeySpace: 
       board[game.rowCount][game.rowCursorPos] = game.selectedColor
       update.board = true
@@ -204,7 +253,7 @@ proc draw(b:var Boxy) =
   b.drawImage(update.colors,cbx.toFloat,cby.toFloat,"colorBar",paintColorBar)
   b.drawImage(update.board,bx,by,"board",paintBoard)
   b.drawImage(update.clues,(bx+(game.nrOfColumns*(cah+1))).toFloat,by,"clues",paintClues)
-  if not gameOver: 
+  if gameState == playing: 
     b.drawImage("colorCursor",vec2(cbx.toFloat,(cbb-(game.selectedColor*cah)).toFloat))
     b.drawImage(rowCursorUpdated,(bx+(game.rowCursorPos*cah)).toFloat,
       (cbb-((game.rowCount+2)*cah)).toFloat,"rowCursor",paintRowCursor)
@@ -216,14 +265,17 @@ template initUpdates =
   update.codeRow = true
   update.colors = true
 
+template initMegamind =
+  addImage(bg)
+  addImage ("colorCursor",paintCursor(rgba(255,255,255,255)))
+  addImage ("rowCursor",paintRowCursor())
+  addCall(newCall("megamind",keyboard,nil,draw,nil))
+  randomize()
+  initGame()
+  initUpdates
+
+initMegamind
 codeRow = generateCodeRow()
-addImage(bg)
-addImage ("colorCursor",paintCursor(rgba(255,255,255,255)))
-addImage ("rowCursor",paintRowCursor())
-addCall(newCall("megamind",keyboard,nil,draw,nil))
-randomize()
-initGame()
-initUpdates
 window.visible = true
 while not window.closeRequested:
   sleep(30)
