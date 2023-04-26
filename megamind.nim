@@ -17,6 +17,7 @@ type
   ColorBar = array[colors.len,Area]
   BoardRow = array[10,int]
   Board = array[nrOfBoardRows,BoardRow]
+  Locks = array[10,bool]
   Clue = enum none,match,present,notPresent
   CluesRow = array[10,Clue]
   Clues = array[nrOfBoardRows,CluesRow]
@@ -46,6 +47,7 @@ var
   clues:Clues
   codeRow:BoardRow
   board:Board
+  locks:Locks
   gameState:GameState
 
 proc initSetup =
@@ -54,6 +56,8 @@ proc initSetup =
     newBoard:Board
   clues = newClues
   board = newBoard
+  update.board = true
+  update.clues = true
 
 proc initGame =
   game.nrOfColors = colors.high
@@ -127,6 +131,9 @@ proc paintBoard:Image =
       ctx.fillRect (x*cah,height-((y+1)*cah),cah,cah).toRect
       ctx.fillStyle = colors[colorIdx]
       ctx.fillRect ((x*cah)+2,height-((y+1)*cah)+2,cah-4,cah-4).toRect
+      if y == game.rowCount and locks[x]:
+        ctx.fillStyle = rgba(0,0,0,150)
+        ctx.fillRoundedRect(((x*cah)+10,10+height-((y+1)*cah),cah-20,cah-20).toRect,50)
   ctx.image
 
 template clueFillStyleColor:ColorRGBA =
@@ -198,6 +205,9 @@ template newRow =
   if rowFilled() and notRepeatRow():
     clues[game.rowCount] = board[game.rowCount].generateCluesRow
     inc game.rowCount
+    if game.rowCount > 0:
+      for pos in 0..<game.nrOfColumns:
+        if locks[pos]: board[game.rowCount][pos] = board[game.rowCount-1][pos]
     game.rowCursorPos = 0
     update.clues = true
 
@@ -220,18 +230,75 @@ template enterKeyPressed =
 
 template spreadColors =
   let 
-    nrOfColumns = game.nrOfColumns-game.rowCursorPos
+    nrOfColumns = board[game.rowCount][game.rowCursorPos..<game.nrOfColumns].count(0)
     nrOfColors = game.nrOfColors-game.selectedColor+1
-    colorRepeat = if nrOfColors >= nrOfColumns: 1 else: 
-      (nrOfColumns div nrOfColors)+(nrOfColumns mod nrOfColors)
+    colorRepeat = 
+      if nrOfColors >= nrOfColumns: 1 else: 
+        (nrOfColumns div nrOfColors)+
+        (if nrOfColumns mod nrOfColors > 0: 1 else: 0)
   var count = 0
   for pos in game.rowCursorPos..<game.nrOfColumns:
-    board[game.rowCount][pos] = game.selectedColor
-    inc count
+    if board[game.rowCount][pos] == 0:
+      board[game.rowCount][pos] = game.selectedColor
+      inc count
     if count == colorRepeat:
       inc game.selectedColor
       count = 0
   if game.selectedColor >= game.nrOfColors: game.selectedColor = 1
+  update.board = true
+
+template fillColor =
+  let inputColor = board[game.rowCount][game.rowCursorPos]
+  for pos in game.rowCursorPos..<game.nrOfColumns:
+    if board[game.rowCount][pos] == inputColor:
+      board[game.rowCount][pos] = game.selectedColor
+  update.board = true
+
+template spaceKeyPressed =
+  let sameColor = board[game.rowCount][game.rowCursorPos] == game.selectedColor
+  locks[game.rowCursorPos] = not locks[game.rowCursorPos] and sameColor
+  board[game.rowCount][game.rowCursorPos] = game.selectedColor
+  update.board = true
+
+template insertKeyPressed =
+  if game.rowCount > 0:
+    board[game.rowCount][game.rowCursorPos] = board[game.rowCount-1][game.rowCursorPos]
+  update.board = true
+
+template deleteKeyPressed =
+  board[game.rowCount][game.rowCursorPos] = 0
+  locks[game.rowCursorPos] = false
+  update.colors = true
+
+template tabKeyPressed =
+  if board[game.rowCount][game.rowCursorPos] > 0:
+    game.selectedColor = board[game.rowCount][game.rowCursorPos]
+  elif game.rowCount > 0:
+    game.selectedColor = board[game.rowCount-1][game.rowCursorPos]
+  update.colors = true
+
+template copyLastLine =
+  if game.rowCount > 0:
+    for pos in 0..<game.nrOfColumns:
+      if board[game.rowCount][pos] == 0:
+        board[game.rowCount][pos] = board[game.rowCount-1][pos]
+  update.board = true
+
+template eraseLine =
+  for pos in 0..<game.nrOfColumns:
+    if not locks[pos]:
+      board[game.rowCount][pos] = 0
+  update.board = true
+
+template deleteLine =
+  for pos in 0..<game.nrOfColumns:
+    board[game.rowCount][pos] = 0
+    locks[pos] = false
+  update.board = true
+
+template removeLocks =
+  for pos in 0..<game.nrOfColumns:
+    locks[pos] = false
   update.board = true
 
 proc keyboard(k:KeyEvent) = 
@@ -242,9 +309,15 @@ proc keyboard(k:KeyEvent) =
   elif not gameOver():
     case k.button
     of KeyS: spreadColors
-    of KeySpace: 
-      board[game.rowCount][game.rowCursorPos] = game.selectedColor
-      update.board = true
+    of KeyF: fillColor
+    of KeyL: copyLastLine
+    of KeyE: eraseLine
+    of KeyD: deleteLine
+    of KeyR: removeLocks
+    of KeyTab: tabKeyPressed
+    of KeyInsert: insertKeyPressed
+    of KeyDelete: deleteKeyPressed
+    of KeySpace: spaceKeyPressed
     else: discard
 
 proc draw(b:var Boxy) =
@@ -257,7 +330,7 @@ proc draw(b:var Boxy) =
     b.drawImage("colorCursor",vec2(cbx.toFloat,(cbb-(game.selectedColor*cah)).toFloat))
     b.drawImage(rowCursorUpdated,(bx+(game.rowCursorPos*cah)).toFloat,
       (cbb-((game.rowCount+2)*cah)).toFloat,"rowCursor",paintRowCursor)
-    b.drawImage(update.codeRow,bx,cby+25,"code",paintCodeImage)
+    b.drawImage(update.codeRow,bx,cby.toFloat,"code",paintCodeImage)
 
 template initUpdates =
   update.board = true
