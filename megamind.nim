@@ -216,7 +216,7 @@ proc paintHelpText(filename:string):Image =
     text = helpText
   result = newImage(700, 800)
   result.fill(rgba(0, 0, 0, 255))
-  result.fillText(typeset(text,vec2(700,780)),translate(vec2(20,20)))
+  result.fillText(typeset(text,vec2(700,780)),translate(vec2(20,10)))
 
 proc paintHelpText:Image = 
   case gameState
@@ -301,40 +301,38 @@ template enterKeyPressed =
     newRow
   else: wonOrLost(lost,"sad-trombone")
 
-proc colorSpan(startColor:int):int =
-  startColor-game.selectedColor+1
-
 proc availableColumns:int =
   board[game.rowCount][game.rowCursorPos..<game.nrOfColumns].count(0)
 
-proc availableColors:int = colorSpan(game.nrOfColors)
+proc availableColors:int = game.nrOfColors-game.selectedColor+1
 
 template maxSpread:int = min(availableColors(),availableColumns())
 
-template colorRepeat():int =
-  let 
-    nrOfColumns = availableColumns()
-    nrOfColors = availableColors()
-  if userSpread > 0:
-    nrOfColumns div userSpread
-  elif nrOfColors >= nrOfColumns: 1 else: 
+template defaultSpread(nrOfColors,nrOfColumns:int):int =
+  if nrOfColors >= nrOfColumns: 1 else: 
     (nrOfColumns div nrOfColors)+
     (if nrOfColumns mod nrOfColors > 0: 1 else: 0)
 
+template colorRepeat:int =
+  let nrOfColumns = availableColumns()
+  if userSpread > 0:
+    nrOfColumns div userSpread
+  else: defaultSpread(availableColors(),nrOfColumns)
+
 proc currentSpreadColorCount:int =
   if userSpread > 0: userSpread else: maxSpread
- 
+
 template spreadColors =
   let 
     repeat = colorRepeat
     maxColors = currentSpreadColorCount()
-    selectedColor = game.selectedColor
+    storedColor = game.selectedColor
   var count = 0
   for pos in game.rowCursorPos..<game.nrOfColumns:
     if board[game.rowCount][pos] == 0:
       board[game.rowCount][pos] = game.selectedColor
       inc count
-    if count == repeat and colorSpan(selectedColor) < maxColors:
+    if count == repeat and game.selectedColor-storedColor+1 < maxColors:
       inc game.selectedColor
       count = 0
   if count > 0: inc game.selectedColor
@@ -416,6 +414,17 @@ template handleUserSpreadInput =
     if k.button != KeyS: userSpread = 0
   update.spread = true
 
+template homeKeyPressed =
+  game.rowCursorPos = 0
+  update.colors = true
+
+template backspaceKeyPressed =
+  let replaceColor = board[game.rowCount][game.rowCursorPos]
+  for i in 0..<game.nrOfColumns:
+    if board[game.rowCount][i] == replaceColor:
+      board[game.rowCount][i] = game.selectedColor
+  update.board = true
+
 proc keyboard(k:KeyEvent) = 
   echo k.button
   echo k.rune
@@ -435,6 +444,8 @@ proc keyboard(k:KeyEvent) =
     of KeyN: startGameSetup
     of KeyC: combinationReveal
     of KeyT: test
+    of KeyBackspace: backspaceKeyPressed
+    of KeyHome: homeKeyPressed 
     of KeyTab: tabKeyPressed
     of KeyInsert: insertKeyPressed
     of KeyDelete: deleteKeyPressed
@@ -473,6 +484,7 @@ template initMegamind =
 
 initMegamind
 setVolume(0.5)
+window.title = "Megamind v0.75"
 window.visible = true
 while not window.closeRequested:
   sleep(30)

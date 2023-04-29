@@ -9,21 +9,23 @@ press <Enter> to submit your guess.
 2) A yellow clue indicates a color in the wrong place.
 3) A red clue indicates a color not in the combination
 
-To fascilitate fast and easy input of colors to the board,
-a set of tool keys are provided.
-
 header:Key tools
-|Spacebar|: input selected color; twice input sets a lock
+|Left/Right-arrow|: Move input cursor left/right
+|Up/Down-arrow|: Move color selector up/down
+|Home|: Move input cursor to first column
+|Spacebar|: Input selected color; twice input sets a lock
 |Enter|: Submit input line
 |S|pread: Input a color sequence from position and selected color
 |F|ill: Replace input color or blank from position forward
-|L|ast line: Copies last lines input as this lines input
+|L|ast line: Copies last line to this line - if any
 |E|rase line: Remove all colors from input line - except locks
-|D|elete line: Remove all colors and locks from input
+|D|elete line: Remove all colors and locks from input line
 |R|emove: Remove all locks
 |Tab|: Select input color. If blank select last line input color
-|Insert|: Copy last lines input to this lines input position
+|Insert|: Copy last line's color in input position to this line
 |Delete|: Remove input color and lock - if any
+|Backspace|: Replace color/blank in input position with selected color
+|0..9| Set S = X to number of colors to spread - follow with S
 
 header:Key controls
 |N|ew game: New game setup - ends the game

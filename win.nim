@@ -41,7 +41,7 @@ type
 
 let 
   window* = newWindow(
-    "Nino3.4 normalized",
+    "",
     ivec2(800,600),
     WindowStyle.DecoratedResizable, 
     visible = false
