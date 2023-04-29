@@ -1,0 +1,6 @@
+header:Game lost
+
+You have lost the game.
+
+<Enter>
+:Press Enter to setup a new game.

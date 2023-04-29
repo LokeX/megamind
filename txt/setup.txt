@@ -1,0 +1,9 @@
+header:Setup new game
+
+The goal of Megamind is to guess a sequence of randomly selected colors.
+Setting up a game involves choosing the number of colors from which that 
+sequence is generated. As well as choosing the length of that sequence.
+
+1) Set the number of colors used with the up and down arrow keys.
+2) Set the length of the sequnce with the left and right arrow keys.
+3) Start the game by pressing the <Enter> key
