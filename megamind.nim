@@ -373,6 +373,7 @@ template insertKeyPressed =
     board[game.rowCount][game.rowCursorPos] = board[game.rowCount-1][game.rowCursorPos]
   game.selectedColor = board[game.rowCount][game.rowCursorPos]
   update.board = true
+  update.colors = true
 
 template deleteKeyPressed =
   board[game.rowCount][game.rowCursorPos] = 0
