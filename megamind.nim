@@ -27,8 +27,10 @@ type
   Update = tuple[codeRow,clues,board,colors,helpTxt,spread:bool]
   Game = tuple[nrOfColumns,nrOfColors,selectedColor,rowCursorPos,rowCount:int]
   GameState = enum setup,won,lost,playing
+  SavedGame = tuple[codeRow:BoardRow,board:Board,clues:Clues,game:Game]
 
 const
+  cfgFileName = "megamind.cfg"
   minColumns = 4
   minColors = 4
   (cbx,cby,cah) = (100,100,50)
@@ -54,31 +56,16 @@ let
   lostTxt = paintHelpText("lost")
 
 var
-  game:Game
+  game:Game = (minColumns,colors.high,1,0,0)
   update:Update = (true,true,true,true,true,true)
   clues:Clues
   codeRow:BoardRow
   board:Board
   locks:Locks
   gameState:GameState
+  savedGame:SavedGame
   userSpread:int
-
-template initSetup =
-  var
-    newClues:Clues
-    newBoard:Board
-  clues = newClues
-  board = newBoard
-  update.board = true
-  update.clues = true
-  update.helpTxt = true
-
-proc initGame =
-  game.nrOfColors = colors.high
-  game.nrOfColumns = minColumns
-  game.selectedColor = 1
-  game.rowCount = 0
-  game.rowCursorPos = 0
+  hasSavedGame:bool
 
 proc gameOver:bool = gameState in [won,lost]
 
@@ -253,11 +240,19 @@ template arrowPressed =
     (1,game.nrOfColors,step),(0,game.nrOfColumns-1,step))
 
 template startNewGame =
-  gameState = playing
+  generateCodeRow
+  game.selectedColor = 1
+  game.rowCount = 0
+  game.rowCursorPos = 0
+  update.spread = true
   update.codeRow = true
   update.colors = true
   update.helpTxt = true
-  generateCodeRow
+  hasSavedGame = false
+  gameState = playing
+  locks = block:
+    var newLocks:Locks
+    newLocks
 
 proc notRepeatRow:bool =
   game.rowCount == 0 or board[game.rowCount] != board[game.rowCount-1]
@@ -275,11 +270,6 @@ template newRow =
     game.rowCursorPos = 0
     update.clues = true
 
-template startGameSetup =
-  gameState = setup
-  initGame()
-  initSetup()
-
 proc wonOrLost(state:GameState,sound:string) =
   clues[game.rowCount] = board[game.rowCount].generateCluesRow
   gameState = state
@@ -287,6 +277,29 @@ proc wonOrLost(state:GameState,sound:string) =
   update.codeRow = true
   update.helpTxt = true
   playSound(sound)
+
+template startGameSetup =
+  var
+    newClues:Clues
+    newBoard:Board
+  clues = newClues
+  board = newBoard
+  update.board = true
+  update.clues = true
+  update.helpTxt = true
+  gameState = setup
+
+template inGameSetup =
+  if gameState in [playing,setup]:
+    if hasSavedGame:
+      (codeRow,board,clues,game) = savedGame
+      update = (true,true,true,true,true,true)
+      gameState = playing
+      hasSavedGame = false
+    else:
+      savedGame = (codeRow,board,clues,game)
+      startGameSetup
+      hasSavedGame = true
 
 template enterKeyPressed =
   update.board = true
@@ -339,6 +352,7 @@ template spreadColors =
   if game.selectedColor > game.nrOfColors: game.selectedColor = 1
   update.spread = true
   update.board = true
+  update.colors = true
   userSpread = 0
 
 template fillColor =
@@ -425,6 +439,25 @@ template backspaceKeyPressed =
       board[game.rowCount][i] = game.selectedColor
   update.board = true
 
+template handleGameToolKeys =
+  case k.button
+  of KeyS: spreadColors
+  of KeyF: fillColor
+  of KeyL: copyLastLine
+  of KeyE: eraseLine
+  of KeyD: deleteLine
+  of KeyR: removeLocks
+  of KeyC: combinationReveal
+  of KeyT: test
+  of KeyEscape: startGameSetup
+  of KeyBackspace: backspaceKeyPressed
+  of KeyHome: homeKeyPressed 
+  of KeyTab: tabKeyPressed
+  of KeyInsert: insertKeyPressed
+  of KeyDelete: deleteKeyPressed
+  of KeySpace: spaceKeyPressed
+  else: discard
+
 proc keyboard(k:KeyEvent) = 
   echo k.button
   echo k.rune
@@ -433,24 +466,9 @@ proc keyboard(k:KeyEvent) =
   case k.button
   of KeyEnter: enterKeyPressed
   of KeyDown,KeyUp,KeyLeft,KeyRight: arrowPressed
-  elif gameState == playing:
-    case k.button
-    of KeyS: spreadColors
-    of KeyF: fillColor
-    of KeyL: copyLastLine
-    of KeyE: eraseLine
-    of KeyD: deleteLine
-    of KeyR: removeLocks
-    of KeyN: startGameSetup
-    of KeyC: combinationReveal
-    of KeyT: test
-    of KeyBackspace: backspaceKeyPressed
-    of KeyHome: homeKeyPressed 
-    of KeyTab: tabKeyPressed
-    of KeyInsert: insertKeyPressed
-    of KeyDelete: deleteKeyPressed
-    of KeySpace: spaceKeyPressed
-    else: discard
+  of KeyQ: window.closeRequested = true
+  of KeyEscape: inGameSetup
+  elif gameState == playing: handleGameToolKeys
 
 template drawImages(b:var Boxy) =
   b.drawImage("bg", rect = rect(vec2(0, 0), window.size.vec2))
@@ -474,13 +492,31 @@ proc draw(b:var Boxy) =
     colorY = (cbb-(game.selectedColor*cah)).toFloat
   b.drawImages
 
+proc getInt(s:string,default:int):int =
+  try: result = s.parseInt except: result = default
+
+template writeCfgFile(path:string) =
+  let entry = "nrOfColumns = " & $game.nrOfColumns & "\nnrOfColors = " & $game.nrOfColors
+  writeFile(path,entry)
+
+template readCfgFile(path:string) =
+  if fileExists(path):
+    for entry in readFile(path).splitLines:
+      let cfgItems = entry.split({'=',' '}).filterIt(it.len > 0)
+      try:
+        if cfgItems[0].contains("nrOfColumns"):
+          game.nrOfColumns = getInt(cfgItems[1],4)
+        elif cfgItems[0].contains("nrOfColors"): 
+          game.nrOfColors = getInt(cfgItems[1],16)
+      except: discard
+
 template initMegamind =
   addImage(bg)
   addImage ("colorCursor",paintCursor(rgba(255,255,255,255)))
   addImage ("rowCursor",paintRowCursor())
   addCall(newCall("megamind",keyboard,nil,draw,nil))
   randomize()
-  initGame()
+  readCfgFile("megamind.cfg")
 
 initMegamind
 setVolume(0.5)
@@ -490,3 +526,4 @@ while not window.closeRequested:
   sleep(30)
   pollEvents()
   #for call in calls.filterIt(it.cycle != nil): call.cycle()
+writeCfgFile(cfgFileName)

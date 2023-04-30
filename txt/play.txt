@@ -1,5 +1,5 @@
 header:Playing Megamind
-Guess the randomly generated color sequence by inputting your
+Guess the randomly generated color combination by inputting your
 own sequence and get clues:
 
 header:Clues
@@ -28,6 +28,6 @@ header:Key tools
 |0..9| Set S = X to number of colors to spread - follow with S
 
 header:Key controls
-|N|ew game: New game setup - ends the game
+|Esc|: New game setup
 |C|ombination reveal: Forfeit the game to see the combination
-|Esc|: Quit Megamind
+|Q|uit Megamind - or F12

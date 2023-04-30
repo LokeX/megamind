@@ -223,7 +223,7 @@ proc removeImage*(key:string) =
   bxy.removeImage(key)
 
 window.onButtonPress = proc (button:Button) =
-  if button == KeyEscape:
+  if button == KeyF12:
     window.closeRequested = true
   else:
     for call in calls:
