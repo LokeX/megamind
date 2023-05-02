@@ -26,8 +26,10 @@ type
     button*  :Button
   MouseEvent* = object of Event
     pos* :tuple[x,y:int]
+  SpecialKeys = tuple[ctrl,shift,alt:bool]
   KeyEvent*   = object of Event
     rune*:Rune
+    pressed*:SpecialKeys
   KeyCall   = proc(keyboard:KeyEvent)
   MouseCall = proc(mouse:MouseEvent)
   DrawCall  = proc(boxy:var Boxy)
@@ -68,6 +70,7 @@ loadExtensions()
 var
   calls*:seq[Call]
   mouseHandles*:seq[MouseHandle]
+  specialKeys:SpecialKeys
   bxy = newBoxy()
 
 bxy.scale(boxyScale)
@@ -116,8 +119,17 @@ proc newMouseKeyEvent(b:Button): MouseEvent =
     button:b
   )
 
+proc specKeys(b:Button):SpecialKeys =
+  case b
+  of KeyLeftShift,KeyRightShift: specialKeys.shift = b.keyState.down
+  of KeyLeftControl,KeyRightControl: specialKeys.ctrl = b.keyState.down
+  of KeyLeftAlt,KeyRightAlt: specialKeys.alt = b.keyState.down
+  else:discard
+  specialKeys
+
 proc newKeyEvent(b:Button,r:Rune): KeyEvent = 
   KeyEvent(
+    pressed:specKeys(b),
     rune:r,
     keyState:keyState(b),
     button:b
@@ -222,17 +234,21 @@ proc addImages*(ihs:seq[ImageName]) =
 proc removeImage*(key:string) =
   bxy.removeImage(key)
 
+proc callBack(button:Button) =
+  for call in calls:
+    if mouseClicked(button):
+      if call.mouse != nil: 
+        call.mouse(newMouseEvent(button))
+    else:
+      if call.keyboard != nil: 
+        call.keyboard(newKeyEvent(button,"¤".toRunes[0]))
+
+window.onButtonRelease = callBack
+
 window.onButtonPress = proc (button:Button) =
   if button == KeyF12:
     window.closeRequested = true
-  else:
-    for call in calls:
-      if mouseClicked(button):
-        if call.mouse != nil: 
-          call.mouse(newMouseEvent(button))
-      else:
-        if call.keyboard != nil: 
-          call.keyboard(newKeyEvent(button,"¤".toRunes[0]))
+  else: button.callBack
 
 window.onFrame = proc() =
   bxy.beginFrame(window.size)

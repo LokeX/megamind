@@ -1,17 +1,4 @@
-header:Setup new game
-
-The goal of Megamind is to guess a combination of randomly selected
-colors. Setting up a game involves choosing the number of colors from 
-which that combination is generated, as well as choosing its length.
-
-header:Use keys
-
-|Up/Down-Arrows:| Set the number of colors.
-|Left/Right-Arrows:| Set the length of the combination.
-|Enter:| Start the game
-
 header:How to play
-
 1) Spread colors on the first line by pressing the S key
 2) Input the line by pressing the Enter key
 3) Now press a numerical key (0..9) to define user spread

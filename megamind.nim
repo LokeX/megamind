@@ -8,7 +8,7 @@ import megasound
 const
   colors = [
     rgba(0,0,0,255),
-    rgba(25,25,225,255),rgba(138,43,226,255),rgba(165,42,42,255),rgba(95,158,160,255),
+    rgba(10,50,150,255),rgba(138,43,226,255),rgba(165,42,42,255),rgba(95,158,160,255),
     rgba(127,255,0,255),rgba(210,105,30,255),rgba(100,149,237,255),rgba(220,20,60,255),
     rgba(0,255,255,255),rgba(0,0,139,255),rgba(0,139,139,255),rgba(200,200,0,255),
     rgba(0,150,0,255),rgba(139,0,139,255),rgba(255,140,100,255),rgba(255,20,147,255),
@@ -38,6 +38,8 @@ const
   by = cby+((colors.high-nrOfBoardRows)*cah)
   bx = cbx+(cah*2)
   (cbxf,cbyf) = (cbx.toFloat,cby.toFloat)
+  up = 1
+  down = -1
 
 const colorBar = block:
   var bar:ColorBar
@@ -290,16 +292,15 @@ template startGameSetup =
   gameState = setup
 
 template inGameSetup =
-  if gameState in [playing,setup]:
-    if hasSavedGame:
-      (codeRow,board,clues,game) = savedGame
-      update = (true,true,true,true,true,true)
-      gameState = playing
-      hasSavedGame = false
-    else:
-      savedGame = (codeRow,board,clues,game)
-      startGameSetup
-      hasSavedGame = true
+  if gameState == setup and hasSavedGame:
+    (codeRow,board,clues,game) = savedGame
+    update = (true,true,true,true,true,true)
+    gameState = playing
+    hasSavedGame = false
+  elif gameState == playing:
+    savedGame = (codeRow,board,clues,game)
+    startGameSetup
+    hasSavedGame = true
 
 template enterKeyPressed =
   update.board = true
@@ -324,7 +325,7 @@ template maxSpread:int = min(availableColors(),availableColumns())
 template defaultSpread(nrOfColors,nrOfColumns:int):int =
   if nrOfColors >= nrOfColumns: 1 else: 
     (nrOfColumns div nrOfColors)+
-    (if nrOfColumns mod nrOfColors > 0: 1 else: 0)
+    (if (nrOfColors*2)-1 == nrOfColumns: 1 else: 0)
 
 template colorRepeat:int =
   let nrOfColumns = availableColumns()
@@ -417,17 +418,14 @@ template combinationReveal =
   update.codeRow = true
   playSound("sad-trombone")
 
-template test =
-  board[game.rowCount] = codeRow
-  update.board = true
-
 template handleUserSpreadInput =
-  try:
-    let digit = k.rune.toUTF8.parseInt
-    if digit in 0..9 and digit <= maxSpread: userSpread = digit
-  except: 
-    if k.button != KeyS: userSpread = 0
-  update.spread = true
+  if k.button == ButtonUnknown and gameState == playing: 
+    try:
+      let digit = k.rune.toUTF8.parseInt
+      if digit in 0..9 and digit <= maxSpread: userSpread = digit
+    except: 
+      if k.button != KeyS: userSpread = 0
+    update.spread = true
 
 template homeKeyPressed =
   game.rowCursorPos = 0
@@ -436,9 +434,26 @@ template homeKeyPressed =
 template backspaceKeyPressed =
   let replaceColor = board[game.rowCount][game.rowCursorPos]
   for i in 0..<game.nrOfColumns:
-    if board[game.rowCount][i] == replaceColor:
+    if board[game.rowCount][i] == replaceColor and not locks[i]:
       board[game.rowCount][i] = game.selectedColor
   update.board = true
+
+template adjust:int =
+  if game.nrOfColors mod game.nrOfColumns == 0: -1 else: 0
+
+template lastSpreadEntry:int =
+  (((game.nrOfColors div game.nrOfColumns)+adjust)*game.nrOfColumns)+1
+
+proc page(upDown:int) =
+  let
+    t1 = (game.selectedColor div game.nrOfColumns)+upDown
+    t2 = t1+(if game.selectedColor mod game.nrOfColumns == 0: upDown else: 0)
+    t3 = (t2*game.nrOfColumns)+1
+  if upDown > 0:
+    game.selectedColor = if t3 > game.nrOfColors: 1 else: t3
+  else: 
+    game.selectedColor = if t3 < 1: lastSpreadEntry else: t3
+  update.colors = true
 
 template handleGameToolKeys =
   case k.button
@@ -449,7 +464,8 @@ template handleGameToolKeys =
   of KeyD: deleteLine
   of KeyR: removeLocks
   of KeyC: combinationReveal
-  of KeyT: test
+  of KeyPageDown: page down
+  of KeyPageUp: page up
   of KeyEscape: startGameSetup
   of KeyBackspace: backspaceKeyPressed
   of KeyHome: homeKeyPressed 
@@ -461,15 +477,17 @@ template handleGameToolKeys =
 
 proc keyboard(k:KeyEvent) = 
   echo k.button
+  echo k.pressed
+  echo k.keyState
   echo k.rune
-  echo "userSpread: ",userSpread
-  if gameState == playing: handleUserSpreadInput
-  case k.button
-  of KeyEnter: enterKeyPressed
-  of KeyDown,KeyUp,KeyLeft,KeyRight: arrowPressed
-  of KeyQ: window.closeRequested = true
-  of KeyEscape: inGameSetup
-  elif gameState == playing: handleGameToolKeys
+  handleUserSpreadInput
+  if k.keyState.down:
+    case k.button
+    of KeyEnter: enterKeyPressed
+    of KeyDown,KeyUp,KeyLeft,KeyRight: arrowPressed
+    of KeyQ: window.closeRequested = k.pressed.ctrl
+    of KeyEscape: inGameSetup
+    elif gameState == playing: handleGameToolKeys
 
 template drawImages(b:var Boxy) =
   b.drawImage("bg", rect = rect(vec2(0, 0), window.size.vec2))
@@ -493,23 +511,25 @@ proc draw(b:var Boxy) =
     colorY = (cbb-(game.selectedColor*cah)).toFloat
   b.drawImages
 
-proc getInt(s:string,default:int):int =
-  try: result = s.parseInt except: result = default
-
 template writeCfgFile(path:string) =
   let entry = "nrOfColumns = " & $game.nrOfColumns & "\nnrOfColors = " & $game.nrOfColors
   writeFile(path,entry)
 
+proc getInt(s:string,default:int):int =
+  try: result = s.parseInt except: result = default
+
+template parse(entry:string) =
+  let cfgItems = entry.split({'=',' '}).filterIt(it.len > 0)
+  try:
+    if cfgItems[0].contains("nrOfColumns"):
+      game.nrOfColumns = getInt(cfgItems[1],4)
+    elif cfgItems[0].contains("nrOfColors"): 
+      game.nrOfColors = getInt(cfgItems[1],16)
+  except: discard
+
 template readCfgFile(path:string) =
   if fileExists(path):
-    for entry in readFile(path).splitLines:
-      let cfgItems = entry.split({'=',' '}).filterIt(it.len > 0)
-      try:
-        if cfgItems[0].contains("nrOfColumns"):
-          game.nrOfColumns = getInt(cfgItems[1],4)
-        elif cfgItems[0].contains("nrOfColors"): 
-          game.nrOfColors = getInt(cfgItems[1],16)
-      except: discard
+    for entry in readFile(path).splitLines: parse entry
 
 template initMegamind =
   addImage(bg)
@@ -517,12 +537,12 @@ template initMegamind =
   addImage ("rowCursor",paintRowCursor())
   addCall(newCall("megamind",keyboard,nil,draw,nil))
   randomize()
-  readCfgFile("megamind.cfg")
+  readCfgFile(cfgFileName)
+  setVolume(0.5)
+  window.title = "Megamind v0.75"
+  window.visible = true
 
 initMegamind
-setVolume(0.5)
-window.title = "Megamind v0.75"
-window.visible = true
 while not window.closeRequested:
   sleep(30)
   pollEvents()
