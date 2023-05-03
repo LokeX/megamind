@@ -9,6 +9,13 @@ header:Use keys
 |Up/Down-Arrows:| Set the number of colors.
 |Left/Right-Arrows:| Set the length of the combination.
 |Enter:| Start the game
+|Esc:| Back to game - if any
+|Ctrl-Q|uit Megamind - or F12
+
+header:Playing Megamind
+
+Guess the randomly generated color combination by inputting your
+own sequence and get clues:
 
 header:How to play
 

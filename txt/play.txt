@@ -1,33 +1,31 @@
-header:Playing Megamind
-Guess the randomly generated color combination by inputting your
-own sequence and get clues:
-
 header:Clues
-Clues are displayed to the right of your input line when you
-press <Enter> to submit your guess.
 1) A green clue indicates a color in the right place.
 2) A yellow clue indicates a color in the wrong place.
 3) A red clue indicates a color not in the combination
 
 header:Key tools
 |Left/Right-arrow|: Move input cursor left/right
+|Ctrl-Left/Right-arrow|: Move cursor left/right to an input color instance
+|Shift-Left/Right-arrow|: Move cursor left/right to a selected color instance
+|Alt-Left/Right-arrow|: Move cursor left/right to next blank
 |Up/Down-arrow|: Move color selector up/down
+|PageUp/Down|: Move color selector to Next/Previous spread entry
 |Home|: Move input cursor to first column
 |Spacebar|: Input selected color; twice input sets a lock
 |Enter|: Submit input line
 |S|pread: Input a color sequence from position and selected color
-|F|ill: Replace input color or blank from position forward
-|L|ast line: Copies last line to this line - if any
 |E|rase line: Remove all colors from input line - except locks
-|D|elete line: Remove all colors and locks from input line
+|L|ast line: Copies last line to this line - if any
+|F|ill: Replace input color or blank from position forward
+|A|ll Spread: Spread all colors into multiple lines - only on blank first line
 |R|emove: Remove all locks
+|D|elete line: Remove all colors and locks from input line
 |Tab|: Select input color. If blank select last line input color
 |Insert|: Copy last line's color in input position to this line
 |Delete|: Remove input color and lock - if any
+|Ctrl-Delete|: Remove all instances of input color - except locks
+|Shift-Delete|: Remove all instances of selected color - except locks
 |Backspace|: Replace color/blank in input position with selected color
-|0..9| Set S = X to number of colors to spread - follow with S
-
-header:Key controls
+|0..9|: Set S = X to number of colors to spread - follow with S
 |Esc|: New game setup
-|C|ombination reveal: Forfeit the game to see the combination
-|Q|uit Megamind - or F12
+|Ctrl-C|ombination reveal: Forfeit the game to see the combination
