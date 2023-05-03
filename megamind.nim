@@ -263,12 +263,12 @@ template startNewGame =
   locks = block:
     var newLocks:Locks
     newLocks
+  playSound("Blop-Mark_DiAngelo")
 
-proc notRepeatRow:bool =
-  game.rowCount == 0 or board[game.rowCount] != board[game.rowCount-1]
+proc notRepeatRow:bool = 
+  game.rowCount == 0 or board.countIt(it == board[game.rowCount]) == 1
 
-proc rowFilled:bool =
-  board[game.rowCount].countIt(it != 0) == game.nrOfColumns
+proc rowFilled:bool = board[game.rowCount].countIt(it != 0) == game.nrOfColumns
 
 template newRow = 
   if rowFilled() and notRepeatRow():
@@ -280,6 +280,7 @@ template newRow =
     game.rowCursorPos = 0
     update.clues = true
     update.spread = true
+    playSound("Blop-Mark_DiAngelo")
 
 proc wonOrLost(state:GameState,sound:string) =
   clues[game.rowCount] = board[game.rowCount].generateCluesRow
@@ -314,7 +315,6 @@ template inGameSetup =
 
 template enterKeyPressed =
   update.board = true
-  playSound("Blop-Mark_DiAngelo")
   if gameOver():
     startGameSetup
   elif gameState == setup:
@@ -514,6 +514,7 @@ template handleDeleteKey =
 
 template spreadAllColors =
   if game.rowCount == 0 and board[game.rowCount].countIt(it != 0) == 0:
+    userSpread = 0
     spreadColors
     enterKeyPressed
     while game.selectedColor != 1:
