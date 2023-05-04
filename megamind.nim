@@ -8,10 +8,10 @@ import megasound
 const
   colors = [
     rgba(0,0,0,255),
-    rgba(10,50,150,255),rgba(138,43,226,255),rgba(165,42,42,255),rgba(95,158,160,255),
+    rgba(10,50,150,255),rgba(138,100,180,255),rgba(125,80,80,255),rgba(95,120,100,255),
     rgba(127,255,0,255),rgba(210,105,30,255),rgba(100,149,237,255),rgba(220,20,60,255),
     rgba(0,255,255,255),rgba(0,0,139,255),rgba(0,139,139,255),rgba(200,200,0,255),
-    rgba(0,150,0,255),rgba(139,0,139,255),rgba(255,140,100,255),rgba(255,20,147,255),
+    rgba(0,150,0,255),rgba(170,0,220,255),rgba(255,140,100,255),rgba(255,20,147,255),
   ]
   nrOfBoardRows = 14
   maxColumns = 10
@@ -121,7 +121,8 @@ proc paintCodeImage:Image =
   for x,colorIdx in codeRow:
     ctx.fillStyle = rgba(0,0,0,255)
     ctx.fillRect ((x*cah),0,cah,cah).toRect
-    ctx.fillStyle = if gameOver(): colors[colorIdx] else:rgba(50,50,50,255) 
+    ctx.fillStyle = colors[colorIdx]
+    # ctx.fillStyle = if gameOver(): colors[colorIdx] else:rgba(50,50,50,255) 
     ctx.fillRect ((x*cah)+2,2,cah-4,cah-4).toRect
   ctx.image
  
@@ -195,8 +196,6 @@ template helpText:seq[Span] =
   for line in lines("txt\\"&fileName&".txt"):
     if line.toLower.startsWith("header:"):
       spans.add newSpan(line[7..line.high]&"\n",headerFont)
-    elif line.startsWith("<"):
-      spans.add newSpan(line,keyFont)
     elif line.startsWith("|"):
       let t = line.split("|")
       spans.add newSpan(t[^2],keyFont)
@@ -235,14 +234,11 @@ func keyResult(subst:int,formular:(int,int,int)):int =
 template switchOn(s1,s2:untyped,f1,f2:(int,int,int)) =
   if update.colors: s1 = keyResult(s1,f1) else: s2 = keyResult(s2,f2) 
 
-template setArrowImageUpdates =
+template arrowPressed =
   update.colors = k.button in [KeyDown,KeyUp]
   update.board = not update.colors
   update.clues = update.board
   update.setup = true
-
-template arrowPressed =
-  setArrowImageUpdates
   let step = if k.button in [KeyDown,KeyLeft]: -1 else: 1
   if gameState == setup: switchOn(game.nrOfColors,game.nrOfColumns,
     (minColors,colors.high,step),(minColumns,board[0].len,step))
@@ -294,8 +290,10 @@ template startGameSetup =
   var
     newClues:Clues
     newBoard:Board
+    newCode:BoardRow
   clues = newClues
   board = newBoard
+  codeRow = newCode
   update.board = true
   update.clues = true
   update.helpTxt = true
@@ -449,23 +447,23 @@ template backspaceKeyPressed =
       board[game.rowCount][i] = game.selectedColor
   update.board = true
 
-template adjustRange:int = 
-  if game.nrOfColors mod game.nrOfColumns == 0: -1 else: 0
-
-template entryRange:int = (game.nrOfColors div game.nrOfColumns)+adjustRange
-
-template lastSpreadEntry:int = (entryRange*game.nrOfColumns)+1
+proc defaultSpreadEntries:seq[int] =
+  var idx = 1
+  while idx <= game.nrOfColors:
+    result.add idx
+    idx += game.nrOfColumns
 
 proc page(upDown:int) =
-  let
-    t1 = (game.selectedColor div game.nrOfColumns)+upDown
-    t2 = t1+(if game.selectedColor mod game.nrOfColumns == 0: upDown else: 0)
-    t3 = (t2*game.nrOfColumns)+1
-  if upDown > 0:
-    game.selectedColor = if t3 > game.nrOfColors: 1 else: t3
-  else: 
-    game.selectedColor = if t3 < 1: lastSpreadEntry else: t3
-  update.colors = true
+  let 
+    spreadEntries = defaultSpreadEntries()
+    pageUp = upDown > 0
+    f = proc(i:int):bool = 
+      if pageUp: i > game.selectedColor else: i < game.selectedColor
+    indexes = spreadEntries.filter(f)
+  if indexes.len > 0:
+    game.selectedColor = if pageUp: indexes.min else: indexes.max
+  else:
+    game.selectedColor = if pageUp: 1 else: spreadEntries[^1]
 
 proc inputColor(pos:int):int =
   if board[game.rowCount][pos] == 0 and game.rowCount > 0:
@@ -512,14 +510,24 @@ template handleDeleteKey =
     deleteColor(inputColor(game.rowCursorPos))
   else: deleteKeyPressed
 
+template gotAllPresentColors:bool =
+  clues.mapIt(it.countIt(it == present or it == match)).sum == game.nrOfColumns
+
 template spreadAllColors =
   if game.rowCount == 0 and board[game.rowCount].countIt(it != 0) == 0:
     userSpread = 0
+    game.selectedColor = 1
     spreadColors
     enterKeyPressed
-    while game.selectedColor != 1:
+    while game.selectedColor != 1 and not gotAllPresentColors:
       spreadColors
       enterKeyPressed
+    game.selectedColor = 1
+
+template invertLocks =
+  for pos in 0..<game.nrOfColumns: 
+    locks[pos] = board[game.rowCount][pos] > 0 and not locks[pos]
+  update.board = true
 
 template handleGameToolKeys =
   case k.button
@@ -531,6 +539,7 @@ template handleGameToolKeys =
   of KeyR: removeLocks
   of KeyC: combinationReveal
   of KeyA: spreadAllColors
+  of KeyI: invertLocks
   of KeyPageDown: page down
   of KeyPageUp: page up
   of KeyEscape: startGameSetup

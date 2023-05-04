@@ -13,13 +13,14 @@ header:Key tools
 |Home|: Move input cursor to first column
 |Spacebar|: Input selected color; twice input sets a lock
 |Enter|: Submit input line
-|S|pread: Input a color sequence from position and selected color
-|E|rase line: Remove all colors from input line - except locks
-|L|ast line: Copies last line to this line - if any
 |F|ill: Replace input color or blank from position forward
+|E|rase line: Remove all colors from input line - except locks
+|D|elete line: Remove all colors and locks from input line
+|S|pread: Input a color sequence from position and selected color
+|L|ast line: Copies last line to this line - if any
+|I|nvert locks: Lock unlocked/unlock Locked
 |A|ll Spread: Spread all colors into multiple lines - only on blank first line
 |R|emove: Remove all locks
-|D|elete line: Remove all colors and locks from input line
 |Tab|: Select input color. If blank select last line input color
 |Insert|: Copy last line's color in input position to this line
 |Delete|: Remove input color and lock - if any
