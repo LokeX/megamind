@@ -19,4 +19,4 @@ proc playSound*(sound:string) =
     sources[soundSource].source.play()
 
 proc setVolume*(vol:float32) =
-  listener.gain=vol
+  listener.gain = vol

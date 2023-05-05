@@ -4,6 +4,7 @@ import random
 import sequtils
 import strutils
 import megasound
+import sugar
 
 const
   colors = [
@@ -18,8 +19,6 @@ const
   cfgFileName = "megamind.cfg"
   minColumns = 4
   minColors = 4
-  up = 1
-  down = -1
 
 type 
   ColorBar = array[colors.len,Area]
@@ -72,10 +71,6 @@ var
 proc gameOver:bool = gameState in [won,lost]
 
 template gameWon:bool = codeRow == board[game.rowCount]
-
-template generateCodeRow = 
-  for i in 0..<game.nrOfColumns:
-    codeRow[i] = (rand(1000*(game.nrOfColors-1)) div 1000)+1
 
 func cluesRowFromCounts(clueCounts:openArray[int]):CluesRow =
   var cluesRowIdx = 0
@@ -244,6 +239,26 @@ template arrowPressed =
     (minColors,colors.high,step),(minColumns,board[0].len,step))
   elif gameState == playing: switchOn(game.selectedColor,game.rowCursorPos,
     (1,game.nrOfColors,step),(0,game.nrOfColumns-1,step))
+
+func calcSpreadEntries(nrOfColumns,nrOfColors:int):seq[int] =
+  var idx = 1
+  while idx <= nrOfColors:
+    result.add idx
+    idx += nrOfColumns
+
+template spreadEntriesColors(entries:seq[int]):seq[seq[int]] = collect:
+  for i in 0..entries.high: 
+    toSeq(entries[i]..<(if i < entries.high: entries[i+1] else: game.nrOfColors+1))
+
+template codeProposal:BoardRow =
+  var result:BoardRow
+  while result[0..<game.nrOfColumns].count(0) > 0:
+    result[rand(0..<game.nrOfColumns)] = (rand(1000*(game.nrOfColors-1)) div 1000)+1
+  result
+
+template generateCodeRow = 
+  let colorEntries = calcSpreadEntries(game.nrOfColumns,game.nrOfColors).spreadEntriesColors
+  while not colorEntries.allIt(it.anyIt(it in codeRow)): codeRow = codeProposal
 
 template startNewGame =
   generateCodeRow
@@ -447,23 +462,17 @@ template backspaceKeyPressed =
       board[game.rowCount][i] = game.selectedColor
   update.board = true
 
-proc defaultSpreadEntries:seq[int] =
-  var idx = 1
-  while idx <= game.nrOfColors:
-    result.add idx
-    idx += game.nrOfColumns
-
-proc page(upDown:int) =
+template page =
   let 
-    spreadEntries = defaultSpreadEntries()
-    pageUp = upDown > 0
-    f = proc(i:int):bool = 
-      if pageUp: i > game.selectedColor else: i < game.selectedColor
-    indexes = spreadEntries.filter(f)
-  if indexes.len > 0:
-    game.selectedColor = if pageUp: indexes.min else: indexes.max
-  else:
-    game.selectedColor = if pageUp: 1 else: spreadEntries[^1]
+    spreadEntries = calcSpreadEntries(game.nrOfColumns,game.nrOfColors)
+    pageUp = k.button == KeyPageUp
+    indexes = spreadEntries.filterIt(
+      if pageUp: it > game.selectedColor else: it < game.selectedColor
+    )
+  game.selectedColor = 
+    if indexes.len > 0: 
+      if pageUp: indexes.min else: indexes.max 
+    elif pageUp: 1 else: spreadEntries[^1]
 
 proc inputColor(pos:int):int =
   if board[game.rowCount][pos] == 0 and game.rowCount > 0:
@@ -540,8 +549,7 @@ template handleGameToolKeys =
   of KeyC: combinationReveal
   of KeyA: spreadAllColors
   of KeyI: invertLocks
-  of KeyPageDown: page down
-  of KeyPageUp: page up
+  of KeyPageDown,KeyPageUp: page
   of KeyEscape: startGameSetup
   of KeyBackspace: backspaceKeyPressed
   of KeyHome: homeKeyPressed 
