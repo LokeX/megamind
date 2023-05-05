@@ -116,8 +116,8 @@ proc paintCodeImage:Image =
   for x,colorIdx in codeRow:
     ctx.fillStyle = rgba(0,0,0,255)
     ctx.fillRect ((x*cah),0,cah,cah).toRect
-    ctx.fillStyle = colors[colorIdx]
-    # ctx.fillStyle = if gameOver(): colors[colorIdx] else:rgba(50,50,50,255) 
+    # ctx.fillStyle = colors[colorIdx]
+    ctx.fillStyle = if gameOver(): colors[colorIdx] else:rgba(50,50,50,255) 
     ctx.fillRect ((x*cah)+2,2,cah-4,cah-4).toRect
   ctx.image
  
@@ -246,19 +246,24 @@ func calcSpreadEntries(nrOfColumns,nrOfColors:int):seq[int] =
     result.add idx
     idx += nrOfColumns
 
-template spreadEntriesColors(entries:seq[int]):seq[seq[int]] = collect:
+proc calcDefaultSpreadEntries:seq[int] =
+  calcSpreadEntries(game.nrOfColumns,game.nrOfColors)
+
+template spreadColorEntries(entries:seq[int]):seq[seq[int]] = collect:
   for i in 0..entries.high: 
     toSeq(entries[i]..<(if i < entries.high: entries[i+1] else: game.nrOfColors+1))
 
 template codeProposal:BoardRow =
-  var result:BoardRow
-  while result[0..<game.nrOfColumns].count(0) > 0:
-    result[rand(0..<game.nrOfColumns)] = (rand(1000*(game.nrOfColors-1)) div 1000)+1
+  var 
+    result:BoardRow
+    columns = 0..<game.nrOfColumns
+  while result[columns].count(0) > 0:
+    result[rand(columns)] = (rand(1000*(game.nrOfColors-1)) div 1000)+1
   result
 
 template generateCodeRow = 
-  let colorEntries = calcSpreadEntries(game.nrOfColumns,game.nrOfColors).spreadEntriesColors
-  while not colorEntries.allIt(it.anyIt(it in codeRow)): codeRow = codeProposal
+  let colorEntries = spreadColorEntries calcDefaultSpreadEntries()
+  while not colorEntries.allIt it.anyIt it in codeRow: codeRow = codeProposal
 
 template startNewGame =
   generateCodeRow
@@ -625,7 +630,7 @@ template initMegamind =
   randomize()
   readCfgFile(cfgFileName)
   setVolume(0.5)
-  window.title = "Megamind v0.75"
+  window.title = "Megamind v1.0"
   window.visible = true
 
 initMegamind
