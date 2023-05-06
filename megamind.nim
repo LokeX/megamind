@@ -9,7 +9,7 @@ import sugar
 const
   colors = [
     rgba(0,0,0,255),
-    rgba(10,50,150,255),rgba(138,100,180,255),rgba(125,80,80,255),rgba(95,120,100,255),
+    rgba(10,50,120,255),rgba(138,100,180,255),rgba(125,80,80,255),rgba(95,120,100,255),
     rgba(127,255,0,255),rgba(210,105,30,255),rgba(100,149,237,255),rgba(220,20,60,255),
     rgba(0,255,255,255),rgba(0,0,139,255),rgba(0,139,139,255),rgba(200,200,0,255),
     rgba(0,150,0,255),rgba(170,0,220,255),rgba(255,140,100,255),rgba(255,20,147,255),
@@ -28,7 +28,7 @@ type
   Clue = enum none,match,present,notPresent
   CluesRow = array[maxColumns,Clue]
   Clues = array[nrOfBoardRows,CluesRow]
-  Update = tuple[codeRow,clues,board,colors,helpTxt,spread,setup:bool]
+  Update = tuple[codeRow,clues,board,colors,helpTxt,status,setup:bool]
   Game = tuple[nrOfColumns,nrOfColors,selectedColor,rowCursorPos,rowCount:int]
   GameState = enum setup,won,lost,playing
   SavedGame = tuple[codeRow:BoardRow,board:Board,clues:Clues,game:Game]
@@ -169,15 +169,18 @@ proc paintSetup:Image =
   result.fillText(font.typeset(text),translate(vec2(20,12)))
 
 proc currentSpreadColorCount:int
-proc paintSpread:Image =
+proc paintStatus:Image =
   let 
     width = game.nrOfColumns*(cah div 2)
     typeface = readTypeface("fonts\\Roboto-Regular_1.ttf")
     font = newFont(typeface,20,color(1,1,1,1))
-    text = "S = " & $currentSpreadColorCount()
-  result = newImage(width,50)
+    sText = "S = " & $currentSpreadColorCount()
+    rText = "R = " & $game.rowCount
+    xMargin = 20.0
+  result = newImage(width,95)
   result.fill(rgba(0, 0, 0, 255))
-  result.fillText(font.typeset(text),translate(vec2(10,10)))
+  result.fillText(font.typeset(sText),translate(vec2(xMargin,20)))
+  result.fillText(font.typeset(rText),translate(vec2(xMargin,50)))
 
 proc paintColorBar:Image =
   let ctx = newContext(newImage(cah,cah*colors.len))
@@ -215,7 +218,7 @@ proc paintHelpText:Image =
   of lost: lostTxt
   of won: wonTxt
 
-proc drawImage(b:var Boxy,update:var bool,x,y:float,name:string,image:proc():Image) =
+proc drawImage(b:var Boxy,update:var bool,x,y:float,name:string,image:() -> Image) =
   if update:
     removeImage(name)
     addImage (name,image())
@@ -241,17 +244,15 @@ template arrowPressed =
     (1,game.nrOfColors,step),(0,game.nrOfColumns-1,step))
 
 func calcSpreadEntries(nrOfColumns,nrOfColors:int):seq[int] =
-  var idx = 1
-  while idx <= nrOfColors:
-    result.add idx
-    idx += nrOfColumns
+  countup(1,nrOfColors,nrOfColumns).toSeq
 
 proc calcDefaultSpreadEntries:seq[int] =
   calcSpreadEntries(game.nrOfColumns,game.nrOfColors)
 
-template spreadColorEntries(entries:seq[int]):seq[seq[int]] = collect:
-  for i in 0..entries.high: 
-    toSeq(entries[i]..<(if i < entries.high: entries[i+1] else: game.nrOfColors+1))
+template spreadColorEntries(entries:seq[int]):seq[seq[int]] = 
+  collect:
+    for i in 0..entries.high: 
+      toSeq(entries[i]..<(if i < entries.high: entries[i+1] else: game.nrOfColors+1))
 
 template codeProposal:BoardRow =
   var 
@@ -262,32 +263,35 @@ template codeProposal:BoardRow =
   result
 
 template generateCodeRow = 
-  let colorEntries = spreadColorEntries calcDefaultSpreadEntries()
-  while not colorEntries.allIt it.anyIt it in codeRow: codeRow = codeProposal
+  let colorEntries = calcDefaultSpreadEntries().spreadColorEntries
+  while not colorEntries.allIt it.anyIt it in codeRow: 
+    codeRow = codeProposal
+
+proc init[T](t:var T) =
+  var newT:T
+  t = newT
 
 template startNewGame =
   generateCodeRow
   game.selectedColor = 1
   game.rowCount = 0
   game.rowCursorPos = 0
-  update.spread = true
+  update.status = true
   update.codeRow = true
   update.colors = true
   update.helpTxt = true
   hasSavedGame = false
   gameState = playing
-  locks = block:
-    var newLocks:Locks
-    newLocks
+  init locks
   playSound("Blop-Mark_DiAngelo")
 
-proc notRepeatRow:bool = 
-  game.rowCount == 0 or board.countIt(it == board[game.rowCount]) == 1
+template repeatRow:bool = 
+  game.rowCount > 0 and board.countIt(it == board[game.rowCount]) > 1
 
-proc rowFilled:bool = board[game.rowCount].countIt(it != 0) == game.nrOfColumns
+template rowFilled:bool = board[game.rowCount].countIt(it != 0) == game.nrOfColumns
 
 template newRow = 
-  if rowFilled() and notRepeatRow():
+  if rowFilled and not repeatRow:
     clues[game.rowCount] = board[game.rowCount].generateCluesRow
     inc game.rowCount
     if game.rowCount > 0:
@@ -295,7 +299,7 @@ template newRow =
         if locks[pos]: board[game.rowCount][pos] = board[game.rowCount-1][pos]
     game.rowCursorPos = 0
     update.clues = true
-    update.spread = true
+    update.status = true
     playSound("Blop-Mark_DiAngelo")
 
 proc wonOrLost(state:GameState,sound:string) =
@@ -307,13 +311,9 @@ proc wonOrLost(state:GameState,sound:string) =
   playSound(sound)
 
 template startGameSetup =
-  var
-    newClues:Clues
-    newBoard:Board
-    newCode:BoardRow
-  clues = newClues
-  board = newBoard
-  codeRow = newCode
+  init clues
+  init board
+  init codeRow
   update.board = true
   update.clues = true
   update.helpTxt = true
@@ -379,7 +379,7 @@ template spreadColors =
       count = 0
   if count > 0: inc game.selectedColor
   if game.selectedColor > game.nrOfColors: game.selectedColor = 1
-  update.spread = true
+  update.status = true
   update.board = true
   update.colors = true
   userSpread = 0
@@ -454,7 +454,7 @@ template handleUserSpreadInput =
       if digit in 0..9 and digit <= maxSpread: userSpread = digit
     except: 
       if k.button != KeyS: userSpread = 0
-    update.spread = true
+    update.status = true
 
 template homeKeyPressed =
   game.rowCursorPos = 0
@@ -469,7 +469,7 @@ template backspaceKeyPressed =
 
 template page =
   let 
-    spreadEntries = calcSpreadEntries(game.nrOfColumns,game.nrOfColors)
+    spreadEntries = calcDefaultSpreadEntries()
     pageUp = k.button == KeyPageUp
     indexes = spreadEntries.filterIt(
       if pageUp: it > game.selectedColor else: it < game.selectedColor
@@ -478,12 +478,14 @@ template page =
     if indexes.len > 0: 
       if pageUp: indexes.min else: indexes.max 
     elif pageUp: 1 else: spreadEntries[^1]
+  update.colors = true
 
 proc inputColor(pos:int):int =
   if board[game.rowCount][pos] == 0 and game.rowCount > 0:
     result = board[game.rowCount-1][pos]
   else:
     result = board[game.rowCount][pos]
+  update.board = true
 
 template legalMove(button:Button):bool =
   (button == KeyLeft and game.rowCursorPos > 0) or 
@@ -492,23 +494,21 @@ template legalMove(button:Button):bool =
 proc moveToColor(button:Button,color:int) =
   if legalMove(button):
     let 
-      s = if button == KeyLeft: 0..<game.rowCursorPos else: 
+      leftArrow = button == KeyLeft
+      s = if leftArrow: 0..<game.rowCursorPos else: 
         game.rowCursorPos+1..<game.nrOfColumns
       positions = toSeq(s).filterIt(inputColor(it) == color)
     if positions.len > 0:
-      if button == KeyLeft:
-        game.rowCursorPos = positions.max
-      else:
-        game.rowCursorPos = positions.min
+      game.rowCursorPos = if leftArrow: positions.max else: positions.min
 
 template handleArrowPressed =
   if k.pressed.ctrl or k.pressed.shift or k.pressed.alt:
-    case k.button
-    of KeyLeft,KeyRight:
-      if k.pressed.ctrl: moveToColor(k.button,inputColor(game.rowCursorPos))
-      if k.pressed.shift: moveToColor(k.button,game.selectedColor)
-      if k.pressed.alt: moveToColor(k.button,0)
-    else: discard
+    case k.button:
+      of KeyLeft,KeyRight:
+        if k.pressed.shift: moveToColor k.button,game.selectedColor
+        if k.pressed.alt: moveToColor k.button,0
+        if k.pressed.ctrl: moveToColor k.button,inputColor(game.rowCursorPos)
+      else: discard
   else: arrowPressed
 
 proc deleteColor(color:int) =
@@ -544,25 +544,25 @@ template invertLocks =
   update.board = true
 
 template handleGameToolKeys =
-  case k.button
-  of KeyS: spreadColors
-  of KeyF: fillColor
-  of KeyL: copyLastLine
-  of KeyE: eraseLine
-  of KeyD: deleteLine
-  of KeyR: removeLocks
-  of KeyC: combinationReveal
-  of KeyA: spreadAllColors
-  of KeyI: invertLocks
-  of KeyPageDown,KeyPageUp: page
-  of KeyEscape: startGameSetup
-  of KeyBackspace: backspaceKeyPressed
-  of KeyHome: homeKeyPressed 
-  of KeyTab: tabKeyPressed
-  of KeyInsert: insertKeyPressed
-  of KeyDelete: handleDeleteKey
-  of KeySpace: spaceKeyPressed
-  else: discard
+  case k.button:
+    of KeyS: spreadColors
+    of KeyF: fillColor
+    of KeyL: copyLastLine
+    of KeyE: eraseLine
+    of KeyD: deleteLine
+    of KeyR: removeLocks
+    of KeyC: combinationReveal
+    of KeyA: spreadAllColors
+    of KeyI: invertLocks
+    of KeyPageDown,KeyPageUp: page
+    of KeyEscape: startGameSetup
+    of KeyBackspace: backspaceKeyPressed
+    of KeyHome: homeKeyPressed 
+    of KeyTab: tabKeyPressed
+    of KeyInsert: insertKeyPressed
+    of KeyDelete: handleDeleteKey
+    of KeySpace: spaceKeyPressed
+    else: discard
 
 proc keyboard(k:KeyEvent) = 
   # echo k.button
@@ -571,12 +571,13 @@ proc keyboard(k:KeyEvent) =
   # echo k.rune
   handleUserSpreadInput
   if k.keyState.down:
-    case k.button
-    of KeyEnter: enterKeyPressed
-    of KeyDown,KeyUp,KeyLeft,KeyRight: handleArrowPressed
-    of KeyQ: window.closeRequested = k.pressed.ctrl
-    of KeyEscape: inGameSetup
-    elif gameState == playing: handleGameToolKeys
+    case k.button:
+      of KeyEnter: enterKeyPressed
+      of KeyDown,KeyUp,KeyLeft,KeyRight: handleArrowPressed
+      of KeyQ: window.closeRequested = k.pressed.ctrl
+      of KeyEscape: inGameSetup
+      elif gameState == playing: handleGameToolKeys
+      else:discard
 
 template drawImages(b:var Boxy) =
   b.drawImage("bg", rect = rect(vec2(0, 0), window.size.vec2))
@@ -588,7 +589,7 @@ template drawImages(b:var Boxy) =
     b.drawImage(rowCursorUpdated,rowX,rowY,"rowCursor",paintRowCursor)
   if gameState != setup:
     b.drawImage(update.codeRow,bx,cbyf,"code",paintCodeImage)
-    b.drawImage(update.spread,cluesX,cbyf,"spread",paintSpread)
+    b.drawImage(update.status,cluesX,cbyf,"spread",paintStatus)
   else:
     b.drawImage(update.setup,bx,cbyf,"setup",paintSetup)
   b.drawImage(update.helpTxt,bx+900,by-100,"helpTxt",paintHelpText)
@@ -603,24 +604,28 @@ proc draw(b:var Boxy) =
   b.drawImages
 
 template writeCfgFile(path:string) =
-  let entry = "nrOfColumns = " & $game.nrOfColumns & "\nnrOfColors = " & $game.nrOfColors
-  writeFile(path,entry)
+  let settings = [
+    ("nrOfColumns",game.nrOfColumns),
+    ("nrOfColors",game.nrOfColors)
+  ]
+  writeFile(path,settings.mapIt(it[0]&" = " & $it[1]&"\n").join)
 
 proc getInt(s:string,default:int):int =
   try: result = s.parseInt except: result = default
 
-template parse(entry:string) =
-  let cfgItems = entry.split({'=',' '}).filterIt(it.len > 0)
+template parseAndSet(line:string) =
+  let setting = line.split({'=',' '}).filterIt(it.len > 0)
   try:
-    if cfgItems[0].contains("nrOfColumns"):
-      game.nrOfColumns = getInt(cfgItems[1],4)
-    elif cfgItems[0].contains("nrOfColors"): 
-      game.nrOfColors = getInt(cfgItems[1],16)
+    if setting[0].contains("nrOfColumns"):
+      game.nrOfColumns = getInt(setting[1],4)
+    elif setting[0].contains("nrOfColors"): 
+      game.nrOfColors = getInt(setting[1],16)
   except: discard
 
 template readCfgFile(path:string) =
   if fileExists(path):
-    for entry in readFile(path).splitLines: parse entry
+    for line in readFile(path).splitLines: 
+      parseAndSet line
 
 template initMegamind =
   addImage(bg)
