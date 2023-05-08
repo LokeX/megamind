@@ -5,10 +5,10 @@ header:Clues
 
 header:Key tools
 |Left/Right-arrow|: Move input cursor left/right
-|Ctrl-Left/Right-arrow|: Move cursor left/right to an input color instance
-|Shift-Left/Right-arrow|: Move cursor left/right to a selected color instance
-|Alt-Left/Right-arrow|: Move cursor left/right to next blank
 |Up/Down-arrow|: Move color selector up/down
+|Ctrl-Left/Right-arrow|: Move cursor left/right to a color block
+|Shift-Left/Right-arrow|: Move cursor left/right to a input color instance
+|Alt-Left/Right-arrow|: Move cursor left/right to a selected color instance
 |PageUp/Down|: Move color selector to Next/Previous spread entry
 |Home|: Move input cursor to first column
 |Spacebar|: Input selected color; twice input sets a lock
@@ -21,12 +21,12 @@ header:Key tools
 |I|nvert locks: Lock unlocked/unlock Locked
 |A|ll Spread: Spread all colors into multiple lines - only on blank first line
 |R|emove: Remove all locks
-|Tab|: Select input color. If blank select last line input color
+|Backspace|: Select input color. If blank select last line input color
 |Insert|: Copy last line's color in input position to this line
 |Delete|: Remove input color and lock - if any
 |Ctrl-Delete|: Remove all instances of input color - except locks
 |Shift-Delete|: Remove all instances of selected color - except locks
-|Backspace|: Replace color/blank in input position with selected color
+|Tab|: Replace color/blank in input position with selected color
 |0..9|: Set S = X to number of colors to spread - follow with S
 |Esc|: New game setup
 |Ctrl-C|ombination reveal: Forfeit the game to see the combination

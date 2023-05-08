@@ -1,5 +1,5 @@
 header:Game won
+
 Congratulations you won the game.
 
-<Enter>
-:Press Enter to setup a new game.
+|Enter|: Press Enter to setup a new game.

@@ -75,7 +75,7 @@ template gameWon:bool = codeRow == board[game.rowCount]
 func cluesRowFromCounts(clueCounts:openArray[int]):CluesRow =
   var cluesRowIdx = 0
   for clueCountsIdx,clueCount in clueCounts:
-    for count in 1..clueCount: 
+    for _ in 1..clueCount: 
       result[cluesRowIdx] = Clue(clueCountsIdx+1)
       inc cluesRowIdx
 
@@ -175,7 +175,7 @@ proc paintStatus:Image =
     typeface = readTypeface("fonts\\Roboto-Regular_1.ttf")
     font = newFont(typeface,20,color(1,1,1,1))
     sText = "S = " & $currentSpreadColorCount()
-    rText = "R = " & $game.rowCount
+    rText = "R = " & $(game.rowCount+1)
     xMargin = 20.0
   result = newImage(width,95)
   result.fill(rgba(0, 0, 0, 255))
@@ -294,9 +294,8 @@ template newRow =
   if rowFilled and not repeatRow:
     clues[game.rowCount] = board[game.rowCount].generateCluesRow
     inc game.rowCount
-    if game.rowCount > 0:
-      for pos in 0..<game.nrOfColumns:
-        if locks[pos]: board[game.rowCount][pos] = board[game.rowCount-1][pos]
+    for pos in 0..<game.nrOfColumns:
+      if locks[pos]: board[game.rowCount][pos] = board[game.rowCount-1][pos]
     game.rowCursorPos = 0
     update.clues = true
     update.status = true
@@ -387,7 +386,7 @@ template spreadColors =
 template fillColor =
   let inputColor = board[game.rowCount][game.rowCursorPos]
   for pos in game.rowCursorPos..<game.nrOfColumns:
-    if board[game.rowCount][pos] == inputColor:
+    if board[game.rowCount][pos] == inputColor and not locks[pos]:
       board[game.rowCount][pos] = game.selectedColor
   update.board = true
 
@@ -409,7 +408,7 @@ template deleteKeyPressed =
   locks[game.rowCursorPos] = false
   update.board = true
 
-template tabKeyPressed =
+template backSpaceKeyPressed =
   if board[game.rowCount][game.rowCursorPos] > 0:
     game.selectedColor = board[game.rowCount][game.rowCursorPos]
   elif game.rowCount > 0:
@@ -460,7 +459,7 @@ template homeKeyPressed =
   game.rowCursorPos = 0
   update.colors = true
 
-template backspaceKeyPressed =
+template tabKeyPressed =
   let replaceColor = board[game.rowCount][game.rowCursorPos]
   for i in 0..<game.nrOfColumns:
     if board[game.rowCount][i] == replaceColor and not locks[i]:
@@ -470,7 +469,7 @@ template backspaceKeyPressed =
 template page =
   let 
     spreadEntries = calcDefaultSpreadEntries()
-    pageUp = k.button == KeyPageUp
+    pageUp = k.button == KeyPageUp or k.button == KeyUp
     indexes = spreadEntries.filterIt(
       if pageUp: it > game.selectedColor else: it < game.selectedColor
     )
@@ -487,27 +486,35 @@ proc inputColor(pos:int):int =
     result = board[game.rowCount][pos]
   update.board = true
 
-template legalMove(button:Button):bool =
-  (button == KeyLeft and game.rowCursorPos > 0) or 
-  (button == KeyRight and game.rowCursorPos < game.nrOfColumns-1)
+proc rowPositions(button:Button):seq[int] =
+  if button == KeyLeft: 
+    toSeq 0..<game.rowCursorPos
+  else: 
+    toSeq game.rowCursorPos+1..<game.nrOfColumns
+
+proc moveRowCursor(button:Button,positions:openArray[int]) =
+  if positions.len > 0:      
+      game.rowCursorPos = if button == KeyLeft: positions.max else: positions.min
+
+proc moveToColorBlockPositions(button:Button) =
+  let 
+    row = board[game.rowCount]
+    positions = button.rowPositions.filterIt it == 0 or row[it-1] != row[it]
+  moveRowCursor(button,positions)
 
 proc moveToColor(button:Button,color:int) =
-  if legalMove(button):
-    let 
-      leftArrow = button == KeyLeft
-      s = if leftArrow: 0..<game.rowCursorPos else: 
-        game.rowCursorPos+1..<game.nrOfColumns
-      positions = toSeq(s).filterIt(inputColor(it) == color)
-    if positions.len > 0:
-      game.rowCursorPos = if leftArrow: positions.max else: positions.min
+  let positions = button.rowPositions.filterIt(inputColor(it) == color)
+  moveRowCursor(button,positions)
 
 template handleArrowPressed =
   if k.pressed.ctrl or k.pressed.shift or k.pressed.alt:
     case k.button:
       of KeyLeft,KeyRight:
-        if k.pressed.shift: moveToColor k.button,game.selectedColor
-        if k.pressed.alt: moveToColor k.button,0
-        if k.pressed.ctrl: moveToColor k.button,inputColor(game.rowCursorPos)
+        if k.pressed.shift: moveToColor k.button,inputColor(game.rowCursorPos) 
+        if k.pressed.alt: moveToColor k.button,game.selectedColor
+        if k.pressed.ctrl: k.button.moveToColorBlockPositions
+      of KeyUp,KeyDown:
+        if k.pressed.ctrl: page
       else: discard
   else: arrowPressed
 
@@ -556,9 +563,9 @@ template handleGameToolKeys =
     of KeyI: invertLocks
     of KeyPageDown,KeyPageUp: page
     of KeyEscape: startGameSetup
-    of KeyBackspace: backspaceKeyPressed
-    of KeyHome: homeKeyPressed 
     of KeyTab: tabKeyPressed
+    of KeyHome: homeKeyPressed 
+    of KeyBackspace: backSpaceKeyPressed
     of KeyInsert: insertKeyPressed
     of KeyDelete: handleDeleteKey
     of KeySpace: spaceKeyPressed
@@ -617,9 +624,9 @@ template parseAndSet(line:string) =
   let setting = line.split({'=',' '}).filterIt(it.len > 0)
   try:
     if setting[0].contains("nrOfColumns"):
-      game.nrOfColumns = getInt(setting[1],4)
+      game.nrOfColumns = getInt(setting[1],minColumns)
     elif setting[0].contains("nrOfColors"): 
-      game.nrOfColors = getInt(setting[1],16)
+      game.nrOfColors = getInt(setting[1],colors.high)
   except: discard
 
 template readCfgFile(path:string) =
