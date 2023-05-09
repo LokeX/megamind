@@ -460,8 +460,7 @@ template pageUpDown =
     spreadEntries = calcDefaultSpreadEntries()
     pageUp = k.button == KeyPageUp or k.button == KeyUp
     indexes = spreadEntries.filterIt(
-      if pageUp: it > game.selectedColor else: it < game.selectedColor
-    )
+      if pageUp: it > game.selectedColor else: it < game.selectedColor)
   game.selectedColor = 
     if indexes.len > 0: 
       if pageUp: indexes.min else: indexes.max 
@@ -482,7 +481,7 @@ proc rowPositions(button:Button):seq[int] =
     toSeq game.rowCursorPos+1..<game.nrOfColumns
 
 proc moveRowCursor(button:Button,positions:openArray[int]) =
-  if positions.len > 0:      
+  if positions.len > 0:
       game.rowCursorPos = if button == KeyLeft: positions.max else: positions.min
 
 proc moveToColorBlockPositions(button:Button) =
@@ -526,6 +525,7 @@ template gotAllPresentColors:bool =
 template spreadAllColors =
   if game.rowCount == 0 and board[game.rowCount].countIt(it != 0) == 0:
     userSpread = 0
+    game.rowCursorPos = 0
     game.selectedColor = 1
     spreadColors
     enterKeyPressed
