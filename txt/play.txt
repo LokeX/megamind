@@ -9,7 +9,7 @@ header:Key tools
 |Ctrl-Left/Right-arrow|: Move cursor left/right to a color block
 |Shift-Left/Right-arrow|: Move cursor left/right to a input color instance
 |Alt-Left/Right-arrow|: Move cursor left/right to a selected color instance
-|PageUp/Down|: Move color selector to Next/Previous spread entry
+|Ctrl-Up/Down-arrow|: Move color selector to Next/Previous spread entry
 |Home|: Move input cursor to first column
 |Spacebar|: Input selected color; twice input sets a lock
 |Enter|: Submit input line

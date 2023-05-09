@@ -7,16 +7,16 @@ import megasound
 import sugar
 
 const
+  cfgFileName = "megamind.cfg"
   colors = [
     rgba(0,0,0,255),
-    rgba(10,50,120,255),rgba(138,100,180,255),rgba(125,80,80,255),rgba(95,120,100,255),
+    rgba(10,50,80,255),rgba(138,100,180,255),rgba(125,80,80,255),rgba(95,120,100,255),
     rgba(127,255,0,255),rgba(210,105,30,255),rgba(100,149,237,255),rgba(220,20,60,255),
     rgba(0,255,255,255),rgba(0,0,139,255),rgba(0,139,139,255),rgba(200,200,0,255),
     rgba(0,150,0,255),rgba(170,0,220,255),rgba(255,140,100,255),rgba(255,20,147,255),
   ]
   nrOfBoardRows = 14
   maxColumns = 10
-  cfgFileName = "megamind.cfg"
   minColumns = 4
   minColors = 4
 
@@ -31,7 +31,7 @@ type
   Update = tuple[codeRow,clues,board,colors,helpTxt,status,setup:bool]
   Game = tuple[nrOfColumns,nrOfColors,selectedColor,rowCursorPos,rowCount:int]
   GameState = enum setup,won,lost,playing
-  SavedGame = tuple[codeRow:BoardRow,board:Board,clues:Clues,game:Game]
+  SavedGame = tuple[board:Board,clues:Clues,game:Game]
 
 const 
   (cbx,cby,cah) = (100,100,50)
@@ -71,6 +71,11 @@ var
 proc gameOver:bool = gameState in [won,lost]
 
 template gameWon:bool = codeRow == board[game.rowCount]
+
+proc updateImages(b:openArray[string]) =
+  for a,c in update.fieldPairs:
+    when c is bool:
+      if a in b: c = true
 
 func cluesRowFromCounts(clueCounts:openArray[int]):CluesRow =
   var cluesRowIdx = 0
@@ -190,6 +195,10 @@ proc paintColorBar:Image =
   ctx.image
 
 template helpText:seq[Span] =
+  let 
+    font = newFont(typeface, 20, color(1, 1, 1, 1))
+    keyFont = newFont(typeface, 20, color(0, 1, 0, 1))
+    headerFont = newFont(typeface, 24, color(1, 1, 0, 1))
   var spans:seq[Span]
   for line in lines("txt\\"&fileName&".txt"):
     if line.toLower.startsWith("header:"):
@@ -202,14 +211,9 @@ template helpText:seq[Span] =
   spans
 
 proc paintHelpText(filename:string):Image =
-  let 
-    font = newFont(typeface, 20, color(1, 1, 1, 1))
-    keyFont = newFont(typeface, 20, color(0, 1, 0, 1))
-    headerFont = newFont(typeface, 24, color(1, 1, 0, 1))
-    text = helpText
   result = newImage(700, 800)
   result.fill(rgba(0, 0, 0, 255))
-  result.fillText(typeset(text,vec2(700,780)),translate(vec2(20,10)))
+  result.fillText(typeset(helpText,vec2(700,780)),translate(vec2(20,10)))
 
 proc paintHelpText:Image = 
   case gameState
@@ -246,43 +250,38 @@ template arrowPressed =
 func calcSpreadEntries(nrOfColumns,nrOfColors:int):seq[int] =
   countup(1,nrOfColors,nrOfColumns).toSeq
 
-proc calcDefaultSpreadEntries:seq[int] =
+template calcDefaultSpreadEntries:seq[int] =
   calcSpreadEntries(game.nrOfColumns,game.nrOfColors)
 
 template spreadColorEntries(entries:seq[int]):seq[seq[int]] = 
   collect:
     for i in 0..entries.high: 
       toSeq(entries[i]..<(if i < entries.high: entries[i+1] else: game.nrOfColors+1))
-
+ 
 template codeProposal:BoardRow =
   var 
-    result:BoardRow
+    code:BoardRow
     columns = 0..<game.nrOfColumns
-  while result[columns].count(0) > 0:
-    result[rand(columns)] = (rand(1000*(game.nrOfColors-1)) div 1000)+1
-  result
+  while code[columns].count(0) > 0:
+    code[rand(columns)] = (rand(1000*(game.nrOfColors-1)) div 1000)+1
+  code
 
 template generateCodeRow = 
   let colorEntries = calcDefaultSpreadEntries().spreadColorEntries
   while not colorEntries.allIt it.anyIt it in codeRow: 
     codeRow = codeProposal
 
-proc init[T](t:var T) =
-  var newT:T
-  t = newT
+template init[T](t:var T) = t = default typeof T
 
 template startNewGame =
+  init codeRow; init locks
   generateCodeRow
   game.selectedColor = 1
   game.rowCount = 0
   game.rowCursorPos = 0
-  update.status = true
-  update.codeRow = true
-  update.colors = true
-  update.helpTxt = true
+  updateImages ["status","codeRow","colors","helpTxt"]
   hasSavedGame = false
   gameState = playing
-  init locks
   playSound("Blop-Mark_DiAngelo")
 
 template repeatRow:bool = 
@@ -297,36 +296,28 @@ template newRow =
     for pos in 0..<game.nrOfColumns:
       if locks[pos]: board[game.rowCount][pos] = board[game.rowCount-1][pos]
     game.rowCursorPos = 0
-    update.clues = true
-    update.status = true
+    updateImages ["clues","status"]
     playSound("Blop-Mark_DiAngelo")
 
 proc wonOrLost(state:GameState,sound:string) =
   clues[game.rowCount] = board[game.rowCount].generateCluesRow
   gameState = state
-  update.clues = true
-  update.codeRow = true
-  update.helpTxt = true
+  updateImages ["clues","codeRow","helpTxt"]
   playSound(sound)
 
 template startGameSetup =
-  init clues
-  init board
-  init codeRow
-  update.board = true
-  update.clues = true
-  update.helpTxt = true
-  update.setup = true
+  init clues; init board
+  updateImages ["board","clues","helpTxt","setup"]
   gameState = setup
 
 template inGameSetup =
   if gameState == setup and hasSavedGame:
-    (codeRow,board,clues,game) = savedGame
+    (board,clues,game) = savedGame
     update = (true,true,true,true,true,true,true)
     gameState = playing
     hasSavedGame = false
   elif gameState == playing:
-    savedGame = (codeRow,board,clues,game)
+    savedGame = (board,clues,game)
     startGameSetup
     hasSavedGame = true
 
@@ -378,9 +369,7 @@ template spreadColors =
       count = 0
   if count > 0: inc game.selectedColor
   if game.selectedColor > game.nrOfColors: game.selectedColor = 1
-  update.status = true
-  update.board = true
-  update.colors = true
+  updateImages ["status","board","colors"]
   userSpread = 0
 
 template fillColor =
@@ -466,7 +455,7 @@ template tabKeyPressed =
       board[game.rowCount][i] = game.selectedColor
   update.board = true
 
-template page =
+template pageUpDown =
   let 
     spreadEntries = calcDefaultSpreadEntries()
     pageUp = k.button == KeyPageUp or k.button == KeyUp
@@ -514,7 +503,7 @@ template handleArrowPressed =
         if k.pressed.alt: moveToColor k.button,game.selectedColor
         if k.pressed.ctrl: k.button.moveToColorBlockPositions
       of KeyUp,KeyDown:
-        if k.pressed.ctrl: page
+        if k.pressed.ctrl: pageUpDown
       else: discard
   else: arrowPressed
 
@@ -532,7 +521,7 @@ template handleDeleteKey =
   else: deleteKeyPressed
 
 template gotAllPresentColors:bool =
-  clues.mapIt(it.countIt(it == present or it == match)).sum == game.nrOfColumns
+  clues.mapIt(it.countIt it == present or it == match).sum == game.nrOfColumns
 
 template spreadAllColors =
   if game.rowCount == 0 and board[game.rowCount].countIt(it != 0) == 0:
@@ -544,6 +533,16 @@ template spreadAllColors =
       spreadColors
       enterKeyPressed
     game.selectedColor = 1
+
+template ctrlHomePressed =
+  if game.rowCursorPos > 0:
+    for pos in 0..game.rowCursorPos-1:
+      if board[game.rowCount][pos] == 0:
+        game.rowCursorPos = pos
+        break
+
+template handleHomeKeyPressed =
+  if k.pressed.ctrl: ctrlHomePressed else: homeKeyPressed
 
 template invertLocks =
   for pos in 0..<game.nrOfColumns: 
@@ -561,10 +560,9 @@ template handleGameToolKeys =
     of KeyC: combinationReveal
     of KeyA: spreadAllColors
     of KeyI: invertLocks
-    of KeyPageDown,KeyPageUp: page
     of KeyEscape: startGameSetup
     of KeyTab: tabKeyPressed
-    of KeyHome: homeKeyPressed 
+    of KeyHome: handleHomeKeyPressed
     of KeyBackspace: backSpaceKeyPressed
     of KeyInsert: insertKeyPressed
     of KeyDelete: handleDeleteKey
@@ -615,24 +613,21 @@ template writeCfgFile(path:string) =
     ("nrOfColumns",game.nrOfColumns),
     ("nrOfColors",game.nrOfColors)
   ]
-  writeFile(path,settings.mapIt(it[0]&" = " & $it[1]&"\n").join)
+  writeFile(path,settings.mapIt(it[0]&" = " & $it[1]).join "\n")
 
-proc getInt(s:string,default:int):int =
-  try: result = s.parseInt except: result = default
+template setFieldValue(settingName:string,settingValue:int) =
+  for fieldName,fieldValue in game.fieldPairs: 
+    if fieldName.toLower.contains(settingName.toLower):
+      fieldValue = settingValue
 
-template parseAndSet(line:string) =
-  let setting = line.split({'=',' '}).filterIt(it.len > 0)
-  try:
-    if setting[0].contains("nrOfColumns"):
-      game.nrOfColumns = getInt(setting[1],minColumns)
-    elif setting[0].contains("nrOfColors"): 
-      game.nrOfColors = getInt(setting[1],colors.high)
-  except: discard
+template parseAndSet(cfgLine:string) =
+  let setting = cfgLine.split({'=',' '}).filterIt(it.len > 0)
+  try: setFieldValue(setting[0],setting[1].parseInt) except: discard
 
 template readCfgFile(path:string) =
   if fileExists(path):
-    for line in readFile(path).splitLines: 
-      parseAndSet line
+    for cfgLine in readFile(path).splitLines: 
+      parseAndSet cfgLine
 
 template initMegamind =
   addImage(bg)
