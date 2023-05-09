@@ -338,7 +338,7 @@ proc availableColumns:int =
 
 proc availableColors:int = game.nrOfColors-game.selectedColor+1
 
-template maxSpread:int = min(availableColors(),availableColumns())
+proc maxSpread:int = min(availableColors(),availableColumns())
 
 template defaultSpread(nrOfColors,nrOfColumns:int):int =
   if nrOfColors >= nrOfColumns: 1 else: 
@@ -352,7 +352,7 @@ template colorRepeat:int =
   else: defaultSpread(availableColors(),nrOfColumns)
 
 proc currentSpreadColorCount:int =
-  if userSpread > 0: userSpread else: maxSpread
+  if userSpread > 0: userSpread else: maxSpread()
 
 template spreadColors =
   let 
@@ -439,7 +439,7 @@ template handleUserSpreadInput =
   if k.button == ButtonUnknown and gameState == playing: 
     try:
       let digit = k.rune.toUTF8.parseInt
-      if digit in 0..9 and digit <= maxSpread: userSpread = digit
+      if digit in 0..9 and digit <= maxSpread(): userSpread = digit
     except: 
       if k.button != KeyS: userSpread = 0
     update.status = true
@@ -560,6 +560,7 @@ template handleGameToolKeys =
     of KeyC: combinationReveal
     of KeyA: spreadAllColors
     of KeyI: invertLocks
+    of KeyPageUp,KeyPageDown: pageUpDown
     of KeyEscape: startGameSetup
     of KeyTab: tabKeyPressed
     of KeyHome: handleHomeKeyPressed
