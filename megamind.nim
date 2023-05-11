@@ -177,7 +177,6 @@ proc currentSpreadColorCount:int
 proc paintStatus:Image =
   let 
     width = game.nrOfColumns*(cah div 2)
-    typeface = readTypeface("fonts\\Roboto-Regular_1.ttf")
     font = newFont(typeface,20,color(1,1,1,1))
     sText = "S = " & $currentSpreadColorCount()
     rText = "R = " & $(game.rowCount+1)
@@ -267,7 +266,7 @@ template codeProposal:BoardRow =
   code
 
 template generateCodeRow = 
-  let colorEntries = calcDefaultSpreadEntries().spreadColorEntries
+  let colorEntries = calcDefaultSpreadEntries.spreadColorEntries
   while not colorEntries.allIt it.anyIt it in codeRow: 
     codeRow = codeProposal
 
@@ -645,5 +644,4 @@ initMegamind
 while not window.closeRequested:
   sleep(30)
   pollEvents()
-  #for call in calls.filterIt(it.cycle != nil): call.cycle()
 writeCfgFile(cfgFileName)

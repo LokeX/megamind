@@ -23,10 +23,10 @@ header:How to play
 2) Input the line by pressing the Enter key
 3) Now press a numerical key (0..9) to define user spread
 4) The S = X sign will display the number if it is legal
-5) Press the S key to spread that number of colors
-6) This allows you to quickly get clues to work with
-7) When you have assertained a colors placement you lock it
-8) Input the color twice in place to lock a color
-9) The color will hence forth be copied into new lines
+5) Press the S key to spread X number of colors
+6) This provides you clues to work with
+7) When you have assertained a colors placement you may lock it
+8) Input the color twice in the same place to lock a color
+9) The color will hence forth be copied to new lines
 10) There are other valuable key tools - try them out
 11) They will be listed here when the game begins
