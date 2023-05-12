@@ -273,3 +273,10 @@ window.onMouseMove = proc () =
   for call in calls:
     if call.mouse != nil: 
       call.mouse(newMouseMoveEvent())
+
+proc runCyclesAndtimers* =
+  for call in calls.mitems:
+    if call.cycle != nil: call.cycle()
+    if call.timer.call != nil and cpuTime()-call.timer.lastTime > call.timer.secs:
+      call.timer.lastTime = cpuTime()
+      call.timer.call()

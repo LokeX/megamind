@@ -174,15 +174,11 @@ proc paintSetup:Image =
   result.fill(rgba(0, 0, 0, 255))
   result.fillText(font.typeset(text),translate(vec2(20,12)))
 
-func hmsFormat(hms:int):string =
-  if hms < 10: "0"&hms.intToStr else: hms.intToStr
+func msFormat(ms:int):string =
+  if ms < 10: "0"&ms.intToStr else: ms.intToStr
 
-func toHms(seconds:int):string =
-  let
-    secs = hmsFormat seconds mod 60
-    mins = seconds div 60
-    mins2 = hmsFormat mins mod 60
-  mins2&":"&secs
+func toMs(seconds:int):string =
+  msFormat((seconds div 60) mod 60)&":"&msFormat(seconds mod 60)
 
 proc currentSpreadColorCount:int
 proc paintStatus:Image =
@@ -190,7 +186,7 @@ proc paintStatus:Image =
     width = game.nrOfColumns*(cah div 2)
     font = newFont(typeface,20,color(1,1,1,1))
     text = 
-      "T = "&game.seconds.toHms&
+      "T = "&game.seconds.toMs&
       "\nS = " & $currentSpreadColorCount()&
       "\nR = " & $(game.rowCount+1)
     xMargin = 8.0
@@ -650,6 +646,9 @@ proc timer =
 template timerCall:TimerCall =
   TimerCall(call:timer,lastTime:cpuTime(),secs:1)
 
+proc quitMegamind =
+  writeCfgFile cfgFileName
+
 template initMegamind =
   addImage(bg)
   addImage ("colorCursor",paintCursor(rgba(255,255,255,255)))
@@ -660,13 +659,10 @@ template initMegamind =
   setVolume(0.5)
   window.title = "Megamind v1.0"
   window.visible = true
+  window.onCloseRequest = quitMegamind
 
 initMegamind
 while not window.closeRequested:
   sleep(30)
   pollEvents()
-  for call in calls.mitems:
-    if call.timer.call != nil and cpuTime()-call.timer.lastTime > call.timer.secs:
-      call.timer.lastTime = cpuTime()
-      call.timer.call()
-writeCfgFile(cfgFileName)
+  runCyclesAndtimers()
