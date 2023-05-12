@@ -4,6 +4,7 @@ import std/os
 export boxy
 export windy
 export os
+import times
 
 type
   FileName   = tuple[name,path:string]
@@ -34,12 +35,17 @@ type
   MouseCall = proc(mouse:MouseEvent)
   DrawCall  = proc(boxy:var Boxy)
   CycleCall = proc()
+  TimerCall* = object
+    call*:proc()
+    lastTime*:float
+    secs*:float
   Call      = object
     reciever*:string
     keyboard*:KeyCall
     mouse*   :MouseCall
     draw*    :DrawCall
     cycle*   :CycleCall
+    timer*   :TimerCall
 
 let 
   window* = newWindow(
@@ -88,8 +94,8 @@ proc echoMouseHandles*() =
 
 proc addCall*(call:Call) = calls.add(call)
 
-proc newCall*(r:string, k:KeyCall, m:MouseCall, d:DrawCall, c:CycleCall): Call =
-  Call(reciever:r,keyboard:k,mouse:m,draw:d,cycle:c)
+proc newCall*(r:string, k:KeyCall, m:MouseCall, d:DrawCall, c:CycleCall,t:TimerCall): Call =
+  Call(reciever:r,keyboard:k,mouse:m,draw:d,cycle:c,timer:t)
 
 func mouseClicked(button:Button): bool = 
   button in [

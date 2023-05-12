@@ -5,6 +5,7 @@ import sequtils
 import strutils
 import megasound
 import sugar
+import times
 
 const
   cfgFileName = "megamind.cfg"
@@ -29,7 +30,7 @@ type
   CluesRow = array[maxColumns,Clue]
   Clues = array[nrOfBoardRows,CluesRow]
   Update = tuple[codeRow,clues,board,colors,helpTxt,status,setup:bool]
-  Game = tuple[nrOfColumns,nrOfColors,selectedColor,rowCursorPos,rowCount:int]
+  Game = tuple[nrOfColumns,nrOfColors,selectedColor,rowCursorPos,rowCount,seconds:int]
   GameState = enum setup,won,lost,playing
   SavedGame = tuple[board:Board,clues:Clues,game:Game]
 
@@ -57,7 +58,7 @@ let
   lostTxt = paintHelpText("lost")
 
 var
-  game:Game = (minColumns,colors.high,1,0,0)
+  game:Game = (minColumns,colors.high,1,0,0,0)
   update:Update = (true,true,true,true,true,true,true)
   clues:Clues
   codeRow:BoardRow
@@ -173,18 +174,29 @@ proc paintSetup:Image =
   result.fill(rgba(0, 0, 0, 255))
   result.fillText(font.typeset(text),translate(vec2(20,12)))
 
+func hmsFormat(hms:int):string =
+  if hms < 10: "0"&hms.intToStr else: hms.intToStr
+
+func toHms(seconds:int):string =
+  let
+    secs = hmsFormat seconds mod 60
+    mins = seconds div 60
+    mins2 = hmsFormat mins mod 60
+  mins2&":"&secs
+
 proc currentSpreadColorCount:int
 proc paintStatus:Image =
   let 
     width = game.nrOfColumns*(cah div 2)
     font = newFont(typeface,20,color(1,1,1,1))
-    sText = "S = " & $currentSpreadColorCount()
-    rText = "R = " & $(game.rowCount+1)
-    xMargin = 20.0
+    text = 
+      "T = "&game.seconds.toHms&
+      "\nS = " & $currentSpreadColorCount()&
+      "\nR = " & $(game.rowCount+1)
+    xMargin = 8.0
   result = newImage(width,95)
   result.fill(rgba(0, 0, 0, 255))
-  result.fillText(font.typeset(sText),translate(vec2(xMargin,20)))
-  result.fillText(font.typeset(rText),translate(vec2(xMargin,50)))
+  result.fillText(font.typeset(text),translate(vec2(xMargin,13)))
 
 proc paintColorBar:Image =
   let ctx = newContext(newImage(cah,cah*colors.len))
@@ -278,6 +290,7 @@ template startNewGame =
   game.selectedColor = 1
   game.rowCount = 0
   game.rowCursorPos = 0
+  game.seconds = 0
   updateImages ["status","codeRow","colors","helpTxt"]
   hasSavedGame = false
   gameState = playing
@@ -629,11 +642,19 @@ template readCfgFile(path:string) =
     for cfgLine in readFile(path).splitLines: 
       parseAndSet cfgLine
 
+proc timer =
+  if gameState == playing and game.seconds < 3600:
+    game.seconds += 1
+    update.status = true
+
+template timerCall:TimerCall =
+  TimerCall(call:timer,lastTime:cpuTime(),secs:1)
+
 template initMegamind =
   addImage(bg)
   addImage ("colorCursor",paintCursor(rgba(255,255,255,255)))
   addImage ("rowCursor",paintRowCursor())
-  addCall(newCall("megamind",keyboard,nil,draw,nil))
+  addCall(newCall("megamind",keyboard,nil,draw,nil,timerCall))
   randomize()
   readCfgFile(cfgFileName)
   setVolume(0.5)
@@ -644,4 +665,8 @@ initMegamind
 while not window.closeRequested:
   sleep(30)
   pollEvents()
+  for call in calls.mitems:
+    if call.timer.call != nil and cpuTime()-call.timer.lastTime > call.timer.secs:
+      call.timer.lastTime = cpuTime()
+      call.timer.call()
 writeCfgFile(cfgFileName)
