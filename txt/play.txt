@@ -28,5 +28,6 @@ header:Key tools
 |Shift-Delete|: Remove all instances of selected color - except locks
 |Tab|: Replace color/blank in input position with selected color
 |0..9|: Set S = X to number of colors to spread - follow with S
+
 |Esc|: New game setup
 |Ctrl-C|ombination reveal: Forfeit the game to see the combination

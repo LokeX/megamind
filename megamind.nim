@@ -48,10 +48,14 @@ const
     bar
 
 proc paintHelpText(filename:string):Image
+proc newFont(typeface: Typeface, size: float32, color: Color): Font
 
 let 
   typeface = readTypeface("fonts\\Roboto-Regular_1.ttf")
   bg = ("bg", readImage("bgblue.png"))
+  font = newFont(typeface, 20, color(1, 1, 1, 1))
+  keyFont = newFont(typeface, 20, color(0, 1, 0, 1))
+  headerFont = newFont(typeface, 24, color(1, 1, 0, 1))
   setupTxt = paintHelpText("setup")
   playTxt = paintHelpText("play")
   wonTxt = paintHelpText("won")
@@ -167,24 +171,21 @@ proc newFont(typeface: Typeface, size: float32, color: Color): Font =
   result.paint.color = color
 
 proc paintSetup:Image =
-  let 
-    font = newFont(typeface, 20, color(1, 1, 1, 1))
-    text = "Columns: " & $game.nrOfColumns & ", Colors: " & $game.nrOfColors
+  let text = "Columns: " & $game.nrOfColumns & ", Colors: " & $game.nrOfColors
   result = newImage(300,cah)
   result.fill(rgba(0, 0, 0, 255))
   result.fillText(font.typeset(text),translate(vec2(20,12)))
 
-func msFormat(ms:int):string =
+template msFormat(ms:int):string =
   if ms < 10: "0"&ms.intToStr else: ms.intToStr
 
-func toMs(seconds:int):string =
+template toMs(seconds:int):string =
   msFormat((seconds div 60) mod 60)&":"&msFormat(seconds mod 60)
 
 proc currentSpreadColorCount:int
 proc paintStatus:Image =
   let 
     width = game.nrOfColumns*(cah div 2)
-    font = newFont(typeface,20,color(1,1,1,1))
     text = 
       "T = "&game.seconds.toMs&
       "\nS = " & $currentSpreadColorCount()&
@@ -202,10 +203,6 @@ proc paintColorBar:Image =
   ctx.image
 
 template helpText:seq[Span] =
-  let 
-    font = newFont(typeface, 20, color(1, 1, 1, 1))
-    keyFont = newFont(typeface, 20, color(0, 1, 0, 1))
-    headerFont = newFont(typeface, 24, color(1, 1, 0, 1))
   var spans:seq[Span]
   for line in lines("txt\\"&fileName&".txt"):
     if line.toLower.startsWith("header:"):
@@ -317,6 +314,7 @@ template startGameSetup =
   init clues; init board
   updateImages ["board","clues","helpTxt","setup"]
   gameState = setup
+  playSound("Blop-Mark_DiAngelo")
 
 template inGameSetup =
   if gameState == setup and hasSavedGame:
@@ -421,8 +419,7 @@ template copyLastLine =
 
 template eraseLine =
   for pos in 0..<game.nrOfColumns:
-    if not locks[pos]:
-      board[game.rowCount][pos] = 0
+    if not locks[pos]: board[game.rowCount][pos] = 0
   update.board = true
 
 template deleteLine =
@@ -439,8 +436,7 @@ template removeLocks =
 template combinationReveal =
   if k.pressed.ctrl:
     gameState = lost
-    update.helpTxt = true
-    update.codeRow = true
+    updateImages ["helpTxt","codeRow"]
     playSound("sad-trombone")
 
 template handleUserSpreadInput =
@@ -451,10 +447,6 @@ template handleUserSpreadInput =
     except: 
       if k.button != KeyS: userSpread = 0
     update.status = true
-
-template homeKeyPressed =
-  game.rowCursorPos = 0
-  update.colors = true
 
 template tabKeyPressed =
   let replaceColor = board[game.rowCount][game.rowCursorPos]
@@ -476,21 +468,21 @@ template pageUpDown =
   update.colors = true
 
 proc inputColor(pos:int):int =
+  # update.board = true
   if board[game.rowCount][pos] == 0 and game.rowCount > 0:
-    result = board[game.rowCount-1][pos]
+    board[game.rowCount-1][pos]
   else:
-    result = board[game.rowCount][pos]
-  update.board = true
+    board[game.rowCount][pos]
 
 proc rowPositions(button:Button):seq[int] =
-  if button == KeyLeft: 
+  if button in [KeyLeft,KeyHome]: 
     toSeq 0..<game.rowCursorPos
   else: 
     toSeq game.rowCursorPos+1..<game.nrOfColumns
 
 proc moveRowCursor(button:Button,positions:openArray[int]) =
   if positions.len > 0:
-      game.rowCursorPos = if button == KeyLeft: positions.max else: positions.min
+      game.rowCursorPos = if button in [KeyLeft,KeyHome]: positions.max else: positions.min
 
 proc moveToColorBlockPositions(button:Button) =
   let 
@@ -501,6 +493,13 @@ proc moveToColorBlockPositions(button:Button) =
 proc moveToColor(button:Button,color:int) =
   let positions = button.rowPositions.filterIt(inputColor(it) == color)
   moveRowCursor(button,positions)
+
+proc homeEndKeyPressed(button:Button) =
+  let 
+    row = board[game.rowCount]
+    positions = button.rowPositions.filterIt it == 0 or (row[it] == 0 and row[it-1] != 0)
+  moveRowCursor(button,positions)
+  update.colors = true
 
 template handleArrowPressed =
   if k.pressed.ctrl or k.pressed.shift or k.pressed.alt:
@@ -550,7 +549,7 @@ template ctrlHomePressed =
         break
 
 template handleHomeKeyPressed =
-  if k.pressed.ctrl: ctrlHomePressed else: homeKeyPressed
+  if k.pressed.ctrl: ctrlHomePressed else: homeEndKeyPressed(k.button)
 
 template invertLocks =
   for pos in 0..<game.nrOfColumns: 
@@ -572,6 +571,7 @@ template handleGameToolKeys =
     of KeyEscape: startGameSetup
     of KeyTab: tabKeyPressed
     of KeyHome: handleHomeKeyPressed
+    of KeyEnd: homeEndKeyPressed(k.button)
     of KeyBackspace: backSpaceKeyPressed
     of KeyInsert: insertKeyPressed
     of KeyDelete: handleDeleteKey
@@ -650,19 +650,19 @@ proc quitMegamind =
   writeCfgFile cfgFileName
 
 template initMegamind =
-  addImage(bg)
-  addImage ("colorCursor",paintCursor(rgba(255,255,255,255)))
+  addImage bg
+  addImage ("colorCursor",paintCursor rgba(255,255,255,255))
   addImage ("rowCursor",paintRowCursor())
-  addCall(newCall("megamind",keyboard,nil,draw,nil,timerCall))
+  addCall newCall("megamind",keyboard,nil,draw,nil,timerCall)
   randomize()
-  readCfgFile(cfgFileName)
-  setVolume(0.5)
+  readCfgFile cfgFileName
+  setVolume 0.5
   window.title = "Megamind v1.0"
   window.visible = true
   window.onCloseRequest = quitMegamind
 
 initMegamind
 while not window.closeRequested:
-  sleep(30)
+  sleep 30
   pollEvents()
   runCyclesAndtimers()
