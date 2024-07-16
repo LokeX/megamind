@@ -12,7 +12,6 @@ proc playSound*(sound:string) =
     let 
       soundFile = "sounds\\"&sound&".wav"
       source = newSound(soundFile).play()
-    echo "Loading sound source: ",soundFile
     sources.add (sound,source)
   else:
     sources[soundSource].source.stop()
@@ -20,3 +19,9 @@ proc playSound*(sound:string) =
 
 proc setVolume*(vol:float32) =
   listener.gain = vol
+
+proc closeSound* =
+  slappyClose()
+
+proc volume*:float32 = listener.gain
+

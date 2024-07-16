@@ -7,7 +7,7 @@
       "label": "Megamind",
       "type" :"process",
       "command": "nim",
-      "args": ["c", "-r","--app:gui","-d:release", "megamind.nim"],
+      "args": ["c", "-r","--app:gui","-d:release","--opt:speed", "megamind.nim"],
       "problemMatcher": [],
       "group": {
         "kind": "build",

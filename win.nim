@@ -257,6 +257,7 @@ window.onButtonPress = proc (button:Button) =
   else: button.callBack
 
 window.onFrame = proc() =
+  glClear(GL_COLOR_BUFFER_BIT)  
   bxy.beginFrame(window.size)
   for call in calls:
     if call.draw != nil: call.draw(bxy)

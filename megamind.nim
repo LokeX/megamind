@@ -346,23 +346,22 @@ proc availableColors:int = game.nrOfColors-game.selectedColor+1
 
 proc maxSpread:int = min(availableColors(),availableColumns())
 
-template defaultSpread(nrOfColors,nrOfColumns:int):int =
-  if nrOfColors >= nrOfColumns: 1 else: 
-    (nrOfColumns div nrOfColors)+
-    (if (nrOfColors*2)-1 == nrOfColumns: 1 else: 0)
-
-template colorRepeat:int =
-  let nrOfColumns = availableColumns()
-  if userSpread > 0:
-    nrOfColumns div userSpread
-  else: defaultSpread(availableColors(),nrOfColumns)
+proc colorRepeat:int =
+  let 
+    nrOfColumns = availableColumns()
+    nrOfColors = if userSpread > 0: userSpread else: availableColors()
+  if nrOfColors >= nrOfColumns: 1 else:
+    let 
+      repeat = nrOfColumns div nrOfColors
+      remains = nrOfColumns-(repeat*(nrOfColors-1))
+    if remains > repeat: repeat+1 else: repeat
 
 proc currentSpreadColorCount:int =
   if userSpread > 0: userSpread else: maxSpread()
 
 template spreadColors =
   let 
-    repeat = colorRepeat
+    repeat = colorRepeat()
     maxColors = currentSpreadColorCount()
     storedColor = game.selectedColor
   var count = 0
@@ -647,6 +646,7 @@ template timerCall:TimerCall =
   TimerCall(call:timer,lastTime:cpuTime(),secs:1)
 
 proc quitMegamind =
+  closeSound()
   writeCfgFile cfgFileName
 
 template initMegamind =
