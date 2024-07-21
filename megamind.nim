@@ -351,11 +351,9 @@ proc colorRepeat:int =
     nrOfColumns = availableColumns()
     nrOfColors = if userSpread > 0: userSpread else: availableColors()
   if nrOfColors >= nrOfColumns: 1 else:
-    let 
-      repeat = nrOfColumns div nrOfColors
-      remains = nrOfColumns-(repeat*(nrOfColors-1))
-    if remains > repeat: repeat+1 else: repeat
-
+    let repeat = nrOfColumns div nrOfColors
+    if (nrOfColors-1)*(repeat+1) < nrOfColumns: repeat+1 else: repeat
+ 
 proc currentSpreadColorCount:int =
   if userSpread > 0: userSpread else: maxSpread()
 
@@ -363,13 +361,13 @@ template spreadColors =
   let 
     repeat = colorRepeat()
     maxColors = currentSpreadColorCount()
-    storedColor = game.selectedColor
+    startColor = game.selectedColor
   var count = 0
   for pos in game.rowCursorPos..<game.nrOfColumns:
     if board[game.rowCount][pos] == 0:
       board[game.rowCount][pos] = game.selectedColor
       inc count
-    if count == repeat and game.selectedColor-storedColor+1 < maxColors:
+    if count == repeat and game.selectedColor-startColor+1 < maxColors:
       inc game.selectedColor
       count = 0
   if count > 0: inc game.selectedColor
