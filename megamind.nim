@@ -93,8 +93,12 @@ template countUserColorClues =
   let codeRowUserColorCount = codeRow.count(userColor)
   if codeRowUserColorCount > 0: 
     let 
-      userColorCount = min(codeRowUserColorCount,board[game.rowCount].count(userColor))
-      nrOfMatches = zip(codeRow,userRow).countIt(it[0] == userColor and it[1] == userColor)
+      userColorCount = min(
+        codeRowUserColorCount,
+        board[game.rowCount].count(userColor)
+      )
+      nrOfMatches = zip(codeRow,userRow)
+        .countIt(it[0] == userColor and it[1] == userColor)
     matchCount += nrOfMatches
     presentCount += userColorCount - nrOfMatches
   else: notPresentCount += 1
@@ -109,7 +113,8 @@ proc clueCounts(userRow:BoardRow):array[3,int] =
       checkedColors.add userColor
   [matchCount,presentCount,notPresentCount]
 
-proc generateCluesRow(userRow:BoardRow):CluesRow = userRow.clueCounts.cluesRowFromCounts
+proc generateCluesRow(userRow:BoardRow):CluesRow = 
+  userRow.clueCounts.cluesRowFromCounts
 
 proc paintCursor(color:ColorRGBA):Image =
   let ctx = newContext(newImage(cah,cah))
@@ -143,7 +148,8 @@ proc paintBoard:Image =
       ctx.fillRoundedRect(((x*cah)+2,height-((y+1)*cah)+2,cah-4,cah-4).toRect,5)
       if y == game.rowCount and locks[x]:
         ctx.fillStyle = rgba(0,0,0,150)
-        ctx.fillRoundedRect(((x*cah)+10,10+height-((y+1)*cah),cah-20,cah-20).toRect,50)
+        ctx.fillRoundedRect(
+          ((x*cah)+10,10+height-((y+1)*cah),cah-20,cah-20).toRect,50)
   ctx.image
 
 template clueFillStyleColor:ColorRGBA =
@@ -162,7 +168,8 @@ proc paintClues:Image =
       ctx.fillStyle = colors[0]
       ctx.fillRect (x*(cah div 2),height-((y+1)*cah),cah div 2,cah).toRect
       ctx.fillStyle = clueFillStyleColor
-      ctx.fillRoundedRect((x*(cah div 2)+2,height-((y+1)*cah)+2,(cah div 2)-4,cah-4).toRect,50)
+      ctx.fillRoundedRect(
+        (x*(cah div 2)+2,height-((y+1)*cah)+2,(cah div 2)-4,cah-4).toRect,50)
   ctx.image
 
 proc newFont(typeface: Typeface, size: float32, color: Color): Font =
@@ -352,7 +359,7 @@ proc colorRepeat:int =
     nrOfColors = if userSpread > 0: userSpread else: availableColors()
   if nrOfColors >= nrOfColumns: 1 else:
     let repeat = nrOfColumns div nrOfColors
-    if (nrOfColors-1)*(repeat+1) < nrOfColumns: repeat+1 else: repeat
+    if nrOfColumns mod ((nrOfColors-1)*(repeat+1)) == 1: repeat+1 else: repeat
  
 proc currentSpreadColorCount:int =
   if userSpread > 0: userSpread else: maxSpread()
