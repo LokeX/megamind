@@ -356,11 +356,13 @@ proc maxSpread:int = min(availableColors(),availableColumns())
 proc colorRepeat:int =
   let 
     nrOfColumns = availableColumns()
-    nrOfColors = if userSpread > 0: userSpread else: availableColors()
+    nrOfColors = if userSpread > 0: userSpread else: maxSpread()
   if nrOfColors >= nrOfColumns: 1 else:
     let repeat = nrOfColumns div nrOfColors
-    if nrOfColumns mod ((nrOfColors-1)*(repeat+1)) == 1: repeat+1 else: repeat
- 
+    if nrOfColumns mod nrOfColors == 0 or nrOfColumns-((repeat+1)*nrOfColors) < -1: 
+      repeat
+    else: repeat+1
+
 proc currentSpreadColorCount:int =
   if userSpread > 0: userSpread else: maxSpread()
 
@@ -598,7 +600,8 @@ proc keyboard(k:KeyEvent) =
       else:discard
 
 template drawImages(b:var Boxy) =
-  b.drawImage("bg", rect = rect(vec2(0, 0), window.size.vec2))
+  # b.drawImage("bg", rect = rect(vec2(0, 0), window.size.vec2))
+  b.drawImage("bgbrain",pos = vec2(0,0))
   b.drawImage(update.colors,cbxf,cbyf,"colorBar",paintColorBar)
   b.drawImage(update.board,bx,by,"board",paintBoard)
   b.drawImage(update.clues,cluesX,by,"clues",paintClues)
@@ -656,6 +659,7 @@ proc quitMegamind =
 
 template initMegamind =
   addImage bg
+  addImage ("bgbrain",readImage("bgbrain.jpg"))
   addImage ("colorCursor",paintCursor rgba(255,255,255,255))
   addImage ("rowCursor",paintRowCursor())
   addCall newCall("megamind",keyboard,nil,draw,nil,timerCall)
